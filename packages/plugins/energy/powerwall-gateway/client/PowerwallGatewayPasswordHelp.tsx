@@ -33,21 +33,12 @@ export function PowerwallGatewayPasswordHelp() {
           Other Gateway models are not verified by this plugin; do not assume
           these password instructions apply. See{" "}
           <a
-            href="https://www.tesla.com/en_ie/support/energy/powerwall/mobile-app/connecting-powerwall-wi-fi"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Tesla's label-location guidance
-          </a>{" "}
-          and{" "}
-          <a
             href="https://docs.netzero.energy/docs/diagnostics/Powerwall2#credentials"
             target="_blank"
             rel="noopener noreferrer"
           >
             Netzero's local-password explanation
-          </a>. Tesla's Wi-Fi setup is a different task; you do not need to
-          change Wi-Fi settings to use this plugin.
+          </a>. You do not need to change Wi-Fi settings to use this plugin.
         </p>
       </details>
     </Text>

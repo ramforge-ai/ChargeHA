@@ -81,12 +81,10 @@ timeout or connection failure, check the IP address and network route from the
 ChargeHA server/container; changing the password will not fix an unreachable
 Gateway.
 
-Sources:
-[Tesla's Gateway 2 label-location guidance](https://www.tesla.com/en_ie/support/energy/powerwall/mobile-app/connecting-powerwall-wi-fi)
-and
+Source:
 [Netzero's local-password explanation](https://docs.netzero.energy/docs/diagnostics/Powerwall2#credentials).
-Tesla's linked page describes Wi-Fi setup, not ChargeHA login; there is no need
-to change Wi-Fi settings to use this plugin.
+There is no need to change Wi-Fi settings to use this plugin. The complete
+password instructions are provided above; opening an external page is optional.
 
 ## Credentials and TLS
 
