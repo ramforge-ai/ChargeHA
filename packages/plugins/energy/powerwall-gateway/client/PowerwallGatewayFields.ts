@@ -1,4 +1,6 @@
+import { createElement } from "react";
 import type { PluginConfigField } from "../../../hostUi.ts";
+import { PowerwallGatewayPasswordHelp } from "./PowerwallGatewayPasswordHelp.tsx";
 
 export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
   {
@@ -22,7 +24,8 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
     key: "password",
     label: "Gateway customer password",
     help:
-      "Local customer password, not your Tesla account password. Gateway 2 default: last five characters of its label Password (unless changed).",
+      "Not your Tesla account password. Gateway 2 default: last five characters of the Password on the label behind its glass door (unless changed). Open the help below for details.",
+    after: () => createElement(PowerwallGatewayPasswordHelp),
     secret: true,
     width: 160,
     required: true,

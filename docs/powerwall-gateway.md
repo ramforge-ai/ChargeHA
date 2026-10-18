@@ -32,8 +32,9 @@ plugin.
 5. Enter its **local customer password**, not your Tesla account password. On
    Gateway 2 the default is the last five characters of the label's **Password**
    field, preserving case, unless changed. Do not use the serial number or the
-   Powerwall battery label. See the community
-   [pyPowerwall local API documentation](https://github.com/jasonacox/pypowerwall/blob/main/README.md#command-line-interface-cli).
+   Powerwall battery label. See
+   [Finding your Gateway password](#finding-your-gateway-password) below, also
+   available directly beneath the password field in setup and Settings.
 6. Leave maximum telemetry age at **60 seconds** unless you have a reason to
    change it. The allowed range is 10–300 seconds.
 7. **Test Connection** should show firmware and live power/SOC. In setup, Next
@@ -42,6 +43,48 @@ plugin.
    them separately.
 8. Check grid/battery direction and approximate values against the Tesla app
    before relying on solar-based EV charging. Cloud displays may lag local data.
+
+## Finding your Gateway password
+
+These instructions apply to **Backup Gateway 2**. Other models remain
+unverified; do not assume they use the same label or password convention.
+
+1. Locate the **Gateway**, not the Powerwall battery. Open only its outer glass
+   door and look for the QR-code label with a field named **Password**. Do not
+   remove electrical covers. If you cannot access or identify the label, ask
+   your installer.
+2. Read the **Password** field, not the serial number or part number. Enter only
+   its **last five characters**, preserving uppercase and lowercase, with no
+   extra spaces. This is the default local customer password, unless changed.
+
+   Fictional example (not a real credential):
+
+   ```text
+   Label Password:       Ab3De6Gh9J
+   Enter in ChargeHA:         6Gh9J
+   ```
+
+3. Do not enter the full printed password, your home Wi-Fi password, or your
+   Tesla account password. If you changed the local customer password, enter
+   that replacement instead of deriving one from the label.
+4. Select **Test Connection**. A successful test displays the firmware and live
+   readings. In setup, select **Next** to save; in Settings, use **Save**.
+
+**If login fails:** check the correct label, letter case, accidental spaces and
+local-login email. If the password is unknown or still rejected, ask your
+installer or Tesla Support specifically about the **Gateway's local customer
+login**, not your Tesla account. Do not factory-reset the Gateway for this
+setup. A 401 alone does not prove that local access has been removed. For a
+timeout or connection failure, check the IP address and network route from the
+ChargeHA server/container; changing the password will not fix an unreachable
+Gateway.
+
+Sources:
+[Tesla's Gateway 2 label-location guidance](https://www.tesla.com/en_ie/support/energy/powerwall/mobile-app/connecting-powerwall-wi-fi)
+and
+[Netzero's local-password explanation](https://docs.netzero.energy/docs/diagnostics/Powerwall2#credentials).
+Tesla's linked page describes Wi-Fi setup, not ChargeHA login; there is no need
+to change Wi-Fi settings to use this plugin.
 
 ## Credentials and TLS
 
