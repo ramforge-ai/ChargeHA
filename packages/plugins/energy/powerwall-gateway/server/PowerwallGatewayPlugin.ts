@@ -4,6 +4,7 @@ import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDepend
 import type { EnergyPlugin, PluginHealthCheck } from "@chargeha/shared/plugins";
 import {
   parseMaxStalenessSeconds,
+  parsePollIntervalSeconds,
   POWERWALL_GATEWAY_SECRET_KEYS,
   powerwallGatewayConfigDef,
 } from "./config.ts";
@@ -35,6 +36,10 @@ export class PowerwallGatewayPlugin implements EnergyPlugin {
       new PowerwallGatewayClient(host, email, password),
       maxStalenessSeconds,
       this.deps.log,
+      Date.now,
+      parsePollIntervalSeconds(
+        await this.deps.getConfig("poll_interval_seconds"),
+      ),
     );
   }
 

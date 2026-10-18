@@ -2,6 +2,7 @@ import type { EnergySourceAdapter } from "@chargeha/shared";
 import { Logger } from "@chargeha/server/lib/Logger";
 import {
   parseMaxStalenessSeconds,
+  parsePollIntervalSeconds,
   type PowerwallGatewayConfig,
 } from "./config.ts";
 import { PowerwallGatewayClient } from "./PowerwallGatewayClient.ts";
@@ -12,6 +13,8 @@ const createAdapter = (input: PowerwallGatewayConfig): EnergySourceAdapter =>
     new PowerwallGatewayClient(input.host, input.email, input.password),
     parseMaxStalenessSeconds(input.maxStalenessSeconds),
     new Logger("PowerwallGateway", "error"),
+    Date.now,
+    parsePollIntervalSeconds(input.pollIntervalSeconds),
   );
 
 export async function testPowerwallConnection(
@@ -22,10 +25,8 @@ export async function testPowerwallConnection(
   const adapter = factory(input);
   try {
     await adapter.connect();
-    const [device, realtime] = await Promise.all([
-      adapter.getDeviceInfo(),
-      adapter.getRealtimeData(),
-    ]);
+    const device = await adapter.getDeviceInfo();
+    const realtime = await adapter.getRealtimeData();
     return { success: true as const, device, realtime };
   } catch (err) {
     return {

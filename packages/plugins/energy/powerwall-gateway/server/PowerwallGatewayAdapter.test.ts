@@ -91,6 +91,6 @@ describe("PowerwallGatewayAdapter", () => {
     await adapter.disconnect();
 
     expect(api.clearCalls).toBe(1);
-    expect(adapter.pollIntervalSeconds()).toBe(10);
+    expect(adapter.pollIntervalSeconds()).toBe(30);
   });
 });

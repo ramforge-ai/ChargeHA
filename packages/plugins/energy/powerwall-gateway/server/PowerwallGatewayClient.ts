@@ -15,6 +15,7 @@ export class PowerwallGatewayConnectionError extends Error {
     message: string,
     cause?: Error,
     readonly status?: number,
+    readonly retryAfterMs?: number,
   ) {
     super(message, { cause });
     this.name = "PowerwallGatewayConnectionError";
@@ -25,6 +26,7 @@ export interface PowerwallHttpResponse {
   status: number;
   body: string;
   setCookies: readonly string[];
+  retryAfter?: string;
 }
 
 export interface PowerwallHttp {
@@ -34,7 +36,9 @@ export interface PowerwallHttp {
     method: "GET" | "POST",
     headers: Record<string, string>,
     body?: string,
+    signal?: AbortSignal,
   ): Promise<PowerwallHttpResponse>;
+  close?(): void;
 }
 
 const concat = (chunks: readonly Uint8Array[]): Uint8Array => {
@@ -50,58 +54,97 @@ const concat = (chunks: readonly Uint8Array[]): Uint8Array => {
 
 export const makeNodeHttpsPowerwallHttp = (
   timeoutMs: number = REQUEST_TIMEOUT_MS,
-): PowerwallHttp => ({
-  request(host, path, method, headers, body) {
-    return new Promise((resolve, reject) => {
-      const req = https.request(
-        {
+): PowerwallHttp => {
+  const agent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 1,
+    maxTotalSockets: 1,
+    maxFreeSockets: 1,
+  });
+  return {
+    close: () => agent.destroy(),
+    request(host, path, method, headers, body, signal) {
+      return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(signal.reason);
+          return;
+        }
+        const state = { settled: false };
+        const req = https.request({
           hostname: host,
           port: 443,
           path,
           method,
           headers,
+          agent,
           rejectUnauthorized: false,
           timeout: timeoutMs,
-        },
-        (res) => {
+        }, (res) => {
           const chunks: Uint8Array[] = [];
           res.on("data", (chunk: Uint8Array) => chunks.push(chunk));
           res.on(
             "error",
-            () =>
-              reject(
-                new PowerwallGatewayConnectionError(
-                  "Powerwall response interrupted",
-                ),
-              ),
+            () => fail(new Error("Powerwall response interrupted")),
           );
-          res.on("end", () =>
+          res.on(
+            "aborted",
+            () => fail(new Error("Powerwall response interrupted")),
+          );
+          res.on("end", () => {
+            if (state.settled) return;
+            cleanup();
             resolve({
               status: res.statusCode ?? 0,
               body: new TextDecoder().decode(concat(chunks)),
               setCookies: res.headers["set-cookie"] ?? [],
-            }));
-        },
-      );
-      req.on("timeout", () => {
-        req.destroy(new Error(`timed out after ${timeoutMs}ms`));
+              ...(res.headers["retry-after"]
+                ? { retryAfter: res.headers["retry-after"] }
+                : {}),
+            });
+          });
+        });
+        const cleanup = () => {
+          state.settled = true;
+          clearTimeout(deadline);
+          signal?.removeEventListener("abort", abort);
+        };
+        const fail = (error: Error) => {
+          if (state.settled) return;
+          cleanup();
+          req.destroy(error);
+          reject(
+            new PowerwallGatewayConnectionError(
+              `Powerwall request to https://${host}${path} failed: ${error.message}`,
+              error,
+            ),
+          );
+        };
+        const abort = () => fail(new Error("Powerwall request cancelled"));
+        // Wall-clock deadline also bounds DNS, socket queueing and trickling bodies.
+        const deadline = setTimeout(
+          () => fail(new Error(`timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+        req.on(
+          "timeout",
+          () => fail(new Error(`timed out after ${timeoutMs}ms`)),
+        );
+        req.on("error", fail);
+        signal?.addEventListener("abort", abort, { once: true });
+        if (signal?.aborted) {
+          abort();
+          return;
+        }
+        if (body) req.write(body);
+        req.end();
       });
-      req.on("error", (err: Error) =>
-        reject(
-          new PowerwallGatewayConnectionError(
-            `Powerwall request to https://${host}${path} failed: ${err.message}`,
-            err,
-          ),
-        ));
-      if (body) req.write(body);
-      req.end();
-    });
-  },
-});
+    },
+  };
+};
 
 export interface PowerwallGatewayApi {
   readonly host: string;
-  getJson(path: string): Promise<unknown>;
+  getJson(path: string, signal?: AbortSignal): Promise<unknown>;
   getStatus(): Promise<unknown>;
   clearSession(): void;
 }
@@ -137,6 +180,7 @@ const isUnauthorized = (status: number): boolean =>
 export class PowerwallGatewayClient implements PowerwallGatewayApi {
   private cookie = "";
   private loginInFlight: Promise<string> | null = null;
+  private cooldownUntil = 0;
 
   constructor(
     readonly host: string,
@@ -145,12 +189,13 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
     private readonly http: PowerwallHttp = makeNodeHttpsPowerwallHttp(),
   ) {}
 
-  async getJson(path: string): Promise<unknown> {
-    const first = await this.authenticatedRequest(path);
+  async getJson(path: string, signal?: AbortSignal): Promise<unknown> {
+    this.assertAvailable(signal);
+    const first = await this.authenticatedRequest(path, signal);
     if (!isUnauthorized(first.status)) return this.parse(path, first);
 
     this.cookie = "";
-    const retry = await this.authenticatedRequest(path);
+    const retry = await this.authenticatedRequest(path, signal);
     if (isUnauthorized(retry.status)) {
       throw new PowerwallGatewayAuthError(
         "Powerwall Gateway rejected the configured customer credentials",
@@ -160,6 +205,7 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
   }
 
   async getStatus(): Promise<unknown> {
+    this.assertAvailable();
     const response = await this.http.request(
       this.host,
       "/api/status",
@@ -171,21 +217,45 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
 
   clearSession(): void {
     this.cookie = "";
+    this.http.close?.();
+  }
+
+  private assertAvailable(signal?: AbortSignal): void {
+    signal?.throwIfAborted();
+    const remaining = this.cooldownUntil - Date.now();
+    if (remaining > 0) {
+      throw new PowerwallGatewayConnectionError(
+        "Powerwall Gateway is cooling down after a rate-limit/service response",
+        undefined,
+        undefined,
+        remaining,
+      );
+    }
   }
 
   private async authenticatedRequest(
     path: string,
+    signal?: AbortSignal,
   ): Promise<PowerwallHttpResponse> {
-    const cookie = await this.ensureCookie();
-    return await this.http.request(this.host, path, "GET", {
-      Accept: "application/json",
-      Cookie: cookie,
-    });
+    this.assertAvailable(signal);
+    const cookie = await this.ensureCookie(signal);
+    this.assertAvailable(signal);
+    return await this.http.request(
+      this.host,
+      path,
+      "GET",
+      {
+        Accept: "application/json",
+        Cookie: cookie,
+      },
+      undefined,
+      signal,
+    );
   }
 
-  private async ensureCookie(): Promise<string> {
+  private async ensureCookie(signal?: AbortSignal): Promise<string> {
     if (this.cookie) return this.cookie;
-    if (!this.loginInFlight) this.loginInFlight = this.login();
+    if (!this.loginInFlight) this.loginInFlight = this.login(signal);
     try {
       const cookie = await this.loginInFlight;
       this.cookie = cookie;
@@ -195,7 +265,7 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
     }
   }
 
-  private async login(): Promise<string> {
+  private async login(signal?: AbortSignal): Promise<string> {
     if (!this.password) {
       throw new PowerwallGatewayAuthError(
         "Powerwall Gateway customer password is not configured",
@@ -216,7 +286,9 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
         "Content-Type": "application/json",
       },
       payload,
+      signal,
     );
+    this.checkCooldown(response);
     if (!isSuccessful(response.status)) {
       throw new PowerwallGatewayAuthError(
         `Powerwall Gateway login failed with HTTP ${response.status}`,
@@ -234,7 +306,26 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
     return resolved;
   }
 
+  private checkCooldown(response: PowerwallHttpResponse): void {
+    if (response.status !== 429 && response.status !== 503) return;
+    const raw = response.retryAfter?.trim();
+    const seconds = raw && /^\d+$/.test(raw) ? Number(raw) * 1000 : Number.NaN;
+    const parsed = raw ? Date.parse(raw) - Date.now() : Number.NaN;
+    const requested = Number.isFinite(seconds) ? seconds : parsed;
+    const delay = Number.isFinite(requested) && requested > 0
+      ? Math.min(requested, 3_600_000)
+      : 300_000;
+    this.cooldownUntil = Math.max(this.cooldownUntil, Date.now() + delay);
+    throw new PowerwallGatewayConnectionError(
+      `Powerwall Gateway returned HTTP ${response.status}; cooling down`,
+      undefined,
+      response.status,
+      delay,
+    );
+  }
+
   private parse(path: string, response: PowerwallHttpResponse): unknown {
+    this.checkCooldown(response);
     if (!isSuccessful(response.status)) {
       throw new PowerwallGatewayConnectionError(
         `Powerwall Gateway ${this.host}${path} returned HTTP ${response.status}`,

@@ -6,6 +6,12 @@ import {
 } from "@chargeha/shared/configSections";
 
 export const DEFAULT_POWERWALL_MAX_STALENESS_SECONDS = 60;
+export const DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS = 30;
+export const pollIntervalSchema = z.string().refine(
+  (raw) =>
+    Number.isInteger(Number(raw)) && Number(raw) >= 10 && Number(raw) <= 60,
+  "Powerwall poll interval must be 10-60 whole seconds",
+);
 
 // A hostname only: never accept URL credentials, paths or an alternate port.
 export const gatewayHostSchema = z.string().trim().min(1).regex(
@@ -34,6 +40,11 @@ export const powerwallGatewayConfigDef = defineSection({
     schema: z.string(),
     default: "",
   },
+  pollIntervalSeconds: {
+    key: "poll_interval_seconds",
+    schema: pollIntervalSchema,
+    default: String(DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS),
+  },
   maxStalenessSeconds: {
     key: "max_staleness_seconds",
     schema: freshnessSchema,
@@ -60,4 +71,12 @@ export function parseMaxStalenessSeconds(raw: string | null): number {
     throw new Error("Powerwall telemetry freshness must be 10-300 seconds");
   }
   return Math.round(value);
+}
+
+export function parsePollIntervalSeconds(raw: string | null): number {
+  return Number(
+    pollIntervalSchema.parse(
+      raw ?? String(DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS),
+    ),
+  );
 }

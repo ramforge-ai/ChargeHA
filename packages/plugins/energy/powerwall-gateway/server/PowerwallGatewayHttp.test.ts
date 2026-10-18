@@ -1,4 +1,5 @@
 import { describe, it } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { expect } from "@std/expect";
 import { makeNodeHttpsPowerwallHttp } from "./PowerwallGatewayClient.ts";
 import { httpsHarness } from "./test-helpers/httpsHarness.ts";
@@ -64,6 +65,45 @@ describe("Powerwall HTTPS transport", () => {
       ).rejects.toThrow("response interrupted");
     } finally {
       harness.restore();
+    }
+  });
+  it("aborts a request and clears its wall-clock timer", async () => {
+    const harness = httpsHarness("hang");
+    const controller = new AbortController();
+    try {
+      const result = makeNodeHttpsPowerwallHttp().request(
+        "192.0.2.10",
+        "/test",
+        "GET",
+        {},
+        undefined,
+        controller.signal,
+      );
+      const rejected = expect(result).rejects.toThrow("cancelled");
+      controller.abort();
+      await rejected;
+      expect(harness.state.destroyed).toBe(true);
+    } finally {
+      harness.restore();
+    }
+  });
+  it("times out a stalled request even when no socket timeout event arrives", async () => {
+    const time = new FakeTime();
+    const harness = httpsHarness("hang");
+    try {
+      const result = makeNodeHttpsPowerwallHttp(100).request(
+        "192.0.2.10",
+        "/test",
+        "GET",
+        {},
+      );
+      const rejected = expect(result).rejects.toThrow("100ms");
+      time.tick(100);
+      await rejected;
+      expect(harness.state.destroyed).toBe(true);
+    } finally {
+      harness.restore();
+      time.restore();
     }
   });
 });

@@ -7,13 +7,18 @@ import {
   powerwallGatewayConfigDef,
 } from "./config.ts";
 import { testPowerwallConnection } from "./testPowerwallConnection.ts";
-import { freshnessSchema, gatewayHostSchema } from "./config.ts";
+import {
+  freshnessSchema,
+  gatewayHostSchema,
+  pollIntervalSchema,
+} from "./config.ts";
 
 const testConnectionInput = z.object({
   host: gatewayHostSchema,
   email: z.string(),
   password: z.string().min(1),
   maxStalenessSeconds: freshnessSchema,
+  pollIntervalSeconds: pollIntervalSchema.default("30"),
 });
 
 export function createPowerwallGatewayRouter(deps: PluginDependencies) {

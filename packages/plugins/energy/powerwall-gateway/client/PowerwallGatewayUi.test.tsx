@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     email: "owner@example.com",
     password: "example",
     maxStalenessSeconds: "60",
+    pollIntervalSeconds: "30",
   } as Record<string, string> | undefined,
   test: vi.fn(),
   reset: vi.fn(),
@@ -71,6 +72,7 @@ describe("Powerwall setup and settings", () => {
     email: "owner@example.com",
     password: "example",
     maxStalenessSeconds: "60",
+    pollIntervalSeconds: "30",
   };
   const success = {
     success: true,

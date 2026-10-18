@@ -5,7 +5,7 @@ import { EventEmitter } from "node:events";
 import { stub } from "@std/testing/mock";
 
 export function httpsHarness(
-  mode: "success" | "timeout" | "error" | "interrupted",
+  mode: "success" | "timeout" | "error" | "interrupted" | "hang",
 ) {
   const options: RequestOptions[] = [];
   const writes: string[] = [];
@@ -26,6 +26,7 @@ export function httpsHarness(
         },
         end: () =>
           queueMicrotask(() => {
+            if (mode === "hang") return;
             if (mode === "timeout") {
               request.emit("timeout");
               return;

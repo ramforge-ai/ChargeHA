@@ -44,6 +44,7 @@ export const powerwallGatewaySetupStep: PluginStepDef = {
       email: data?.email ?? "",
       password: data?.password ?? "",
       maxStalenessSeconds: data?.maxStalenessSeconds ?? "60",
+      pollIntervalSeconds: data?.pollIntervalSeconds ?? "30",
     };
     return {
       next: nextState(validated, save),

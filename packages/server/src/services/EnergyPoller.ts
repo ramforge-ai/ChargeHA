@@ -7,6 +7,7 @@ import type { ChargingPointManager } from "./ChargingPointManager.ts";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { Logger } from "../lib/Logger.ts";
 import { ServiceError } from "../lib/ServiceError.ts";
+import { energyRetryDelayMs } from "./energyRetryDelayMs.ts";
 
 export class EnergyPoller {
   private readonly em: EnergyAdapterManager;
@@ -14,7 +15,12 @@ export class EnergyPoller {
   private readonly eventEmitter: TypedEventEmitter;
   private readonly db: AppDatabase;
   private readonly logger: Logger;
-  private timer: Promise<ReturnType<typeof setInterval>> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private generation = 0;
+  private stopped = false;
+  private lifecycle: Promise<void> = Promise.resolve();
+  private controller: AbortController | null = null;
+  private retryDelayMs = 0;
   // In-flight poll, tracked so stop() can await it before shutdown.
   private polling: Promise<void> | null = null;
   private latestRealtime: EnergyData | null = null;
@@ -41,51 +47,83 @@ export class EnergyPoller {
     // config_changed per key, and rebuilding per event would tear down and
     // re-login the adapter once per key.
     this.eventEmitter.subscribe("config_changed", ({ key }) => {
-      if (!this.em.isRelevantConfigKey(key)) return;
+      if (this.stopped || !this.em.isRelevantConfigKey(key)) return;
       if (this.reconfigurePending) return;
       this.reconfigurePending = true;
       queueMicrotask(() => {
         this.reconfigurePending = false;
-        void this.em.reconfigure().then(() => this.restart());
+        if (this.stopped) return;
+        void this.requestStart(true).catch((error) => {
+          this.logger.error("Energy adapter reconfiguration failed:", error);
+        });
       });
     });
-    this.timer = this.start();
+    void this.requestStart().catch((error) => {
+      this.logger.error("Energy polling initialization failed:", error);
+    });
   }
 
-  private async start(): Promise<ReturnType<typeof setInterval>> {
-    await this.em.ready();
-    this.polling = this.poll();
-    const intervalSeconds = this.em.pollIntervalSeconds();
-    this.logger.info(`Polling every ${intervalSeconds}s`);
-    return setInterval(() => {
-      this.polling = this.poll();
-    }, intervalSeconds * 1000);
+  private invalidate(): number {
+    this.generation++;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+    this.controller?.abort(new Error("Energy polling stopped"));
+    return this.generation;
+  }
+
+  private requestStart(reconfigure = false): Promise<void> {
+    this.stopped = false;
+    const generation = this.invalidate();
+    const previous = this.polling;
+    this.lifecycle = this.lifecycle.catch((error) => {
+      this.logger.error("Previous energy lifecycle operation failed:", error);
+    }).then(async () => {
+      await previous;
+      if (generation !== this.generation) return;
+      if (reconfigure) await this.em.reconfigure();
+      else await this.em.ready();
+      if (generation !== this.generation) return;
+      this.latestRealtime = null;
+      this.latestCumulative = null;
+      this.retryDelayMs = 0;
+      this.consecutivePollFailures = 0;
+      this.lastFailureLoggedAtMs = 0;
+      this.logger.info(
+        `Polling every ${this.em.pollIntervalSeconds()}s after completion`,
+      );
+      this.launch(generation);
+    });
+    return this.lifecycle;
+  }
+
+  private launch(generation: number): void {
+    if (generation !== this.generation || this.polling) return;
+    const controller = new AbortController();
+    this.controller = controller;
+    this.polling = this.poll(generation, controller.signal).catch((error) => {
+      this.logger.error("Energy poll processing failed:", error);
+      this.retryDelayMs = 30_000;
+    }).finally(() => {
+      this.polling = null;
+      this.controller = null;
+      if (generation !== this.generation) return;
+      const delay = this.retryDelayMs || this.em.pollIntervalSeconds() * 1000;
+      this.timer = setTimeout(() => this.launch(generation), delay);
+    });
   }
 
   async stop(): Promise<void> {
-    if (this.timer) {
-      clearInterval(await this.timer);
-      this.timer = null;
-    }
-    // Wait for any in-flight poll so it can't emit events / touch the DB
-    // after stop returns.
-    if (this.polling) {
-      await this.polling.catch((err) => {
-        this.logger.error("In-flight poll failed during stop:", err);
-      });
-    }
-    this.polling = null;
-    // Reset snapshot so stop() returns us to the pre-started state — this
-    // also means restart() starts with a null snapshot until the next poll
-    // populates it, which is the correct semantic when reconfiguring.
+    this.stopped = true;
+    const generation = this.invalidate();
+    await this.lifecycle;
+    await this.polling;
+    if (generation !== this.generation) return;
     this.latestRealtime = null;
     this.latestCumulative = null;
   }
 
-  async restart(): Promise<void> {
-    await this.stop();
-    this.timer = this.start();
-    await this.timer;
+  restart(): Promise<void> {
+    return this.requestStart();
   }
 
   getRealtimeSnapshot(): {
@@ -132,10 +170,15 @@ export class EnergyPoller {
     });
   }
 
-  private async poll(): Promise<void> {
+  private async poll(
+    generation = this.generation,
+    signal?: AbortSignal,
+  ): Promise<void> {
     try {
       const load = await this.chargingPoints.getChargingLoadW();
-      const realtime = await this.em.getRealtimeData(load);
+      if (generation !== this.generation) return;
+      const realtime = await this.em.getRealtimeData(load, signal);
+      if (generation !== this.generation) return;
       const adapterName = this.em.constructor.name;
       this.logger.debug(
         `${adapterName} → solar=${realtime.solarProductionW}W grid=${realtime.gridPowerW}W consumption=${realtime.homeConsumptionW}W` +
@@ -158,6 +201,8 @@ export class EnergyPoller {
         dailyGridExportWh: todaySummary.gridExportWh,
       };
 
+      if (generation !== this.generation) return;
+      this.retryDelayMs = 0;
       this.latestRealtime = realtime;
       this.latestCumulative = cumulative;
 
@@ -176,8 +221,16 @@ export class EnergyPoller {
         this.lastFailureLoggedAtMs = 0;
       }
     } catch (error) {
+      if (generation !== this.generation) return;
       this.logger.error("Poll failed:", error);
       await this.recordPollFailure(error);
+      this.retryDelayMs = energyRetryDelayMs(
+        error,
+        this.consecutivePollFailures,
+      );
+      this.logger.info(
+        `Energy polling retry in ${Math.ceil(this.retryDelayMs / 1000)}s`,
+      );
 
       // Record the failure as a zero-valued breadcrumb so DataRecorder writes a
       // row with poll_failed=1 instead of silently re-recording the previous
@@ -196,6 +249,7 @@ export class EnergyPoller {
       };
       const failedCumulative = await this.buildCumulativeFromDb();
 
+      if (generation !== this.generation) return;
       this.latestRealtime = failedRealtime;
       this.latestCumulative = failedCumulative;
       this.eventEmitter.emit("energy_update", {
@@ -207,7 +261,7 @@ export class EnergyPoller {
       this.eventEmitter.emit("energy_poll_failure", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // Don't rethrow — polling continues on next interval
+      // Failure remains visible throughout the cooldown; never serve cached data as fresh.
     }
   }
 

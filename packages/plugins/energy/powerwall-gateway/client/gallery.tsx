@@ -8,6 +8,7 @@ const values = {
   email: "owner@example.com",
   password: "example-only",
   maxStalenessSeconds: "60",
+  pollIntervalSeconds: "30",
 };
 const success = {
   success: true as const,

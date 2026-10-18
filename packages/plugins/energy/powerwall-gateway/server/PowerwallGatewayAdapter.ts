@@ -4,7 +4,10 @@ import type {
   EnergySourceAdapter,
 } from "@chargeha/shared";
 import type { Logger } from "@chargeha/server/lib/Logger";
-import type { PowerwallGatewayApi } from "./PowerwallGatewayClient.ts";
+import {
+  type PowerwallGatewayApi,
+  PowerwallGatewayConnectionError,
+} from "./PowerwallGatewayClient.ts";
 
 const AGGREGATES_PATH = "/api/meters/aggregates";
 const SOE_PATH = "/api/system_status/soe";
@@ -103,15 +106,19 @@ const gridVoltageFrom = (site: JsonRecord): number | null =>
   );
 
 export class PowerwallGatewayAdapter implements EnergySourceAdapter {
+  private inFlight: Promise<EnergyData> | null = null;
+  private controller: AbortController | null = null;
   constructor(
     private readonly client: PowerwallGatewayApi,
     private readonly maxStalenessSeconds: number,
     private readonly logger: Logger,
     private readonly now: () => number = Date.now,
+    private readonly intervalSeconds = 30,
+    private readonly cycleTimeoutMs = 20_000,
   ) {}
 
   pollIntervalSeconds(): number {
-    return 10;
+    return this.intervalSeconds;
   }
 
   async connect(): Promise<void> {
@@ -122,16 +129,68 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
     );
   }
 
-  disconnect(): Promise<void> {
+  async disconnect(): Promise<void> {
+    this.controller?.abort(new Error("Powerwall adapter disconnected"));
+    try {
+      await this.inFlight;
+    } catch (error) {
+      this.logger.debug(
+        `Powerwall pending read ended during disconnect: ${
+          error instanceof Error ? error.name : "error"
+        }`,
+      );
+    }
     this.client.clearSession();
-    return Promise.resolve();
   }
 
-  async getRealtimeData(): Promise<EnergyData> {
-    const [aggregates, soe] = await Promise.all([
-      this.client.getJson(AGGREGATES_PATH),
-      this.client.getJson(SOE_PATH),
-    ]);
+  getRealtimeData(signal?: AbortSignal): Promise<EnergyData> {
+    if (this.inFlight) return this.inFlight;
+    const pending = this.readCycle(signal).finally(() => {
+      this.inFlight = null;
+      this.controller = null;
+    });
+    this.inFlight = pending;
+    return pending;
+  }
+
+  private async readCycle(externalSignal?: AbortSignal): Promise<EnergyData> {
+    const started = this.now();
+    const controller = new AbortController();
+    this.controller = controller;
+    const signal = externalSignal
+      ? AbortSignal.any([externalSignal, controller.signal])
+      : controller.signal;
+    const deadline = setTimeout(() =>
+      controller.abort(
+        new PowerwallGatewayConnectionError(
+          `Powerwall poll exceeded ${this.cycleTimeoutMs}ms deadline`,
+        ),
+      ), this.cycleTimeoutMs);
+    try {
+      const data = await this.readTelemetry(signal);
+      this.logger.debug(
+        `Powerwall poll succeeded in ${this.now() - started}ms; in-flight=1`,
+      );
+      return data;
+    } catch (error) {
+      const failure = signal.aborted ? signal.reason : error;
+      this.logger.debug(
+        `Powerwall poll failed in ${this.now() - started}ms; category=${
+          failure instanceof Error ? failure.name : "unknown"
+        }`,
+      );
+      throw failure;
+    } finally {
+      clearTimeout(deadline);
+    }
+  }
+
+  private async readTelemetry(signal: AbortSignal): Promise<EnergyData> {
+    signal.throwIfAborted();
+    const aggregates = await this.client.getJson(AGGREGATES_PATH, signal);
+    signal.throwIfAborted();
+    const soe = await this.client.getJson(SOE_PATH, signal);
+    signal.throwIfAborted();
     const meters = metersFrom(aggregates);
     const nowMs = this.now();
     assertFresh(meters, nowMs, this.maxStalenessSeconds);

@@ -15,6 +15,7 @@ describe("Powerwall connection test lifecycle", () => {
     email: "",
     password: "example",
     maxStalenessSeconds: "60",
+    pollIntervalSeconds: "30",
   };
   const factory = (api: FakePowerwallApi) => () =>
     new PowerwallGatewayAdapter(

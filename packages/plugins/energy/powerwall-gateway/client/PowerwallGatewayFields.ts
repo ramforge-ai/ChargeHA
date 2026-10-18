@@ -28,6 +28,15 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
     required: true,
   },
   {
+    key: "pollIntervalSeconds",
+    label: "Polling interval (seconds)",
+    help:
+      "Wait between completed polls. Default 30 seconds; allowed range 10-60. Failed requests automatically back off.",
+    width: 90,
+    advanced: true,
+    required: true,
+  },
+  {
     key: "maxStalenessSeconds",
     label: "Maximum telemetry age (seconds)",
     help:
@@ -44,6 +53,7 @@ export interface PowerwallGatewayValues {
   email: string;
   password: string;
   maxStalenessSeconds: string;
+  pollIntervalSeconds: string;
 }
 
 export const valuesFrom = (
@@ -53,4 +63,5 @@ export const valuesFrom = (
   email: values.email ?? "",
   password: values.password ?? "",
   maxStalenessSeconds: values.maxStalenessSeconds || "60",
+  pollIntervalSeconds: values.pollIntervalSeconds || "30",
 });

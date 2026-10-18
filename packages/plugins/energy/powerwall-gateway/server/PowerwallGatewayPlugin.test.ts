@@ -24,6 +24,7 @@ describe("Powerwall plugin and config router", () => {
     email: "owner@example.com",
     password: "test-only-password",
     maxStalenessSeconds: "60",
+    pollIntervalSeconds: "30",
   };
   beforeEach(async () => {
     ctx = await setup();

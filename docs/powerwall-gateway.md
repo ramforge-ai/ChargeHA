@@ -67,9 +67,13 @@ parsing errors omit response bodies.
 | `GET /api/meters/aggregates` | Site, solar, load and battery power          |
 | `GET /api/system_status/soe` | Battery percentage                           |
 
-Poll interval is 10 seconds. HTTPS requests use a 10-second socket inactivity
-timeout. Concurrent reads share login; a protected request receiving 401/403
-reauthenticates and retries once, then fails rather than looping indefinitely.
+The default polling interval is 30 seconds after completion, configurable from
+10 to 60 seconds. HTTPS requests have a 10-second wall-clock deadline as well as
+a socket inactivity timeout; the whole telemetry cycle is capped at 20 seconds.
+Reads are sequential and reuse the login session. A protected request receiving
+401/403 reauthenticates and retries once, then fails rather than looping
+indefinitely. See **Polling safeguards** below for failure backoff and
+cooldowns.
 
 Power is rounded to watts. Positive grid means **import**; negative means
 export. Positive battery means **discharge**; negative means charge. Solar and
@@ -114,3 +118,35 @@ connection feedback examples. They do not query a Gateway. Live experience
 covers one Gateway 2 installation; daytime/export scenarios and failure recovery
 are simulated test evidence, not a multi-device or multi-day field validation
 claim.
+
+## Polling safeguards
+
+Normal polling waits **30 seconds after the previous cycle completes**. The
+advanced **Polling interval** setting accepts whole seconds from 10 to 60.
+Existing installations without that setting use 30 seconds; meter freshness
+remains at its existing configured value (default 60 seconds). A slower interval
+trades quicker solar tracking for less Gateway traffic; charging thresholds and
+schedules are not changed.
+
+The shared energy poller permits only one cycle in flight. Stop and reconfigure
+abort a cooperative adapter, drain outstanding work, and discard results from an
+obsolete generation. Powerwall reads aggregates then SOC sequentially through a
+client-owned HTTPS pool capped at one connection. Requests have a 10-second
+wall-clock deadline; the telemetry cycle, including authentication and both
+reads, has a combined 20-second deadline. Cancellation destroys the active
+request rather than merely abandoning its promise.
+
+A failed cycle stays explicitly unavailable throughout cooldown. The shared
+poller backs off at 30, 60, 120, then 300 seconds, with up to 10% positive
+jitter and a five-minute cap. Fresh successful data resets this backoff. HTTP
+429 and 503 additionally activate a client-wide cooldown: `Retry-After` seconds
+or an HTTP date are respected, capped at one hour; absent/invalid/past values
+use five minutes. All client endpoints, including login, observe that cooldown.
+Retry hints never cause an earlier retry than the shared backoff. There is no
+cloud fallback and no reuse of stale readings as fresh charging input.
+
+At debug log level, cycle timing and success/failure category are recorded
+without credentials or payloads. Normal logs show retry delay; plugin logs keep
+throttled failures and recovery counts. These guards address proven scheduling
+risks, not a proven cause of any particular Gateway/network outage. No induced
+hardware outage or load test is needed for the regression suite.
