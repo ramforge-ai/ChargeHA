@@ -44,11 +44,13 @@ const timestampAt = (meter: JsonRecord, label: string): number => {
   return parsed;
 };
 
-const clampSoc = (value: number): number => {
+const usableSoc = (value: number): number => {
   if (value < 0 || value > 100) {
     throw new Error("Powerwall telemetry has invalid battery state of charge");
   }
-  return value;
+  // The local SOE includes Tesla's 5% buffer, unlike the app's usable SOC.
+  // This buffer is separate from the owner's configurable backup reserve.
+  return Math.max(0, Math.min(100, (value - 5) / 0.95));
 };
 
 interface MeterSet {
@@ -97,7 +99,7 @@ const assertFresh = (
 
 const batterySocFrom = (raw: unknown): number => {
   const soe = recordAt(raw, "battery state of charge");
-  return clampSoc(numberAt(soe.percentage, "battery percentage"));
+  return usableSoc(numberAt(soe.percentage, "battery percentage"));
 };
 
 const gridVoltageFrom = (site: JsonRecord): number | null =>

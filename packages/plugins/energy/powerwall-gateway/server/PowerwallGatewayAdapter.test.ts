@@ -32,7 +32,7 @@ describe("PowerwallGatewayAdapter", () => {
     expect(data.gridPowerW).toBe(-2_000);
     expect(data.homeConsumptionW).toBe(4_000);
     expect(data.batteryPowerW).toBe(1_500);
-    expect(data.batterySoc).toBe(82.4);
+    expect(data.batterySoc).toBeCloseTo(81.47368421052632, 10);
     expect(data.gridVoltageV).toBe(239.7);
     expect(data.lastUpdated).toBe("2026-08-31T01:00:00.000Z");
   });

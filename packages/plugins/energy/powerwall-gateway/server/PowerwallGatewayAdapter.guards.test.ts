@@ -73,7 +73,7 @@ describe("Powerwall poll containment", () => {
       "/api/system_status/soe",
     ]);
     api.requests[1].resolve({ percentage: 50 });
-    expect((await first).batterySoc).toBe(50);
+    expect((await first).batterySoc).toBeCloseTo(47.36842105263158, 10);
     await second;
   });
   it("does not launch a sibling after a failed aggregate read", async () => {

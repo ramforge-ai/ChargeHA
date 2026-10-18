@@ -121,7 +121,17 @@ cooldowns.
 Power is rounded to watts. Positive grid means **import**; negative means
 export. Positive battery means **discharge**; negative means charge. Solar and
 home power are clamped to zero for small negative meter noise. Voltage is
-optional. SOC must be finite and between 0 and 100.
+optional. Raw SOC must be finite and between 0 and 100; invalid readings fail
+the poll before conversion. The local SOE endpoint includes Tesla's 5% battery
+buffer. The plugin reports usable SOC on the Tesla app's scale:
+`max(0, min(100, (rawPercentage - 5) / 0.95))`. For example, raw 24% becomes
+20%; raw 0–5% becomes 0%, and raw 100% remains 100%. Fractional precision is
+retained for the UI to format. This follows
+[pyPowerwall's app-style scaling](https://github.com/jasonacox/pypowerwall/blob/main/API.md#power-and-energy).
+The 5% buffer is separate from your configured backup reserve: no user reserve
+is subtracted, and measured charge/discharge power is not inferred from SOC.
+Connection-test results and subsequent polls use the same conversion. Existing
+history rows are not rewritten.
 
 Each aggregate meter must have finite power and a valid
 `last_communication_time`. The oldest timestamp must be within the configured

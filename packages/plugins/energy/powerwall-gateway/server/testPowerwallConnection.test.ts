@@ -27,8 +27,11 @@ describe("Powerwall connection test lifecycle", () => {
 
   it("returns device and telemetry and clears the temporary session", async () => {
     const api = new FakePowerwallApi(aggregates());
+    api.soeResponse = { percentage: 24 };
     const result = await testPowerwallConnection(input, factory(api));
     expect(result.success).toBe(true);
+    if (!result.success) throw new Error("Expected successful connection");
+    expect(result.realtime.batterySoc).toBe(20);
     expect(api.clearCalls).toBe(1);
   });
   it("cleans up after a failed connection without returning fabricated telemetry", async () => {
