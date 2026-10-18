@@ -1,0 +1,116 @@
+# Tesla Powerwall Gateway (local)
+
+The `powerwall_gateway` energy plugin reads site-level solar production, grid
+import/export, home consumption, battery power and battery state of charge from
+a Tesla Energy Gateway on your LAN. It is separate from the Tesla **vehicle**
+plugin. No Fleet API credentials, OAuth flow, RSA registration, or Python proxy
+are needed.
+
+## Compatibility and scope
+
+Validated on **Backup Gateway 2, firmware 26.34.0**, with local customer login.
+This is not a claim that every Gateway or every 26.x firmware supports this API.
+Powerwall 3, Gateway 1, multi-Gateway sites and other firmware are unverified.
+There is no TEDAPI/v1r or cloud fallback. The plugin requires the four endpoints
+below, including all four aggregate meters and their communication timestamps.
+
+The plugin is read-only with respect to Powerwall settings: it does not set
+backup reserve, operating mode, grid charging, or import/export limits. EV
+charging stays under ChargeHA's controller and the selected vehicle/charger
+plugin.
+
+## Setup
+
+1. Ensure the ChargeHA **server/container** can reach the Gateway on HTTPS
+   port 443. Reserve the Gateway's address in DHCP. Phone/browser access alone
+   is not enough.
+2. Select **Tesla Powerwall Gateway** as the energy source in setup or Settings.
+3. Enter the Gateway's IPv4 address or DNS hostname, without scheme, port or
+   path. IPv6 literal input is not currently supported.
+4. Enter the email associated with the Gateway's local customer login if
+   required.
+5. Enter its **local customer password**, not your Tesla account password. On
+   Gateway 2 the default is the last five characters of the label's **Password**
+   field, preserving case, unless changed. Do not use the serial number or the
+   Powerwall battery label. See the community
+   [pyPowerwall local API documentation](https://github.com/jasonacox/pypowerwall/blob/main/README.md#command-line-interface-cli).
+6. Leave maximum telemetry age at **60 seconds** unless you have a reason to
+   change it. The allowed range is 10–300 seconds.
+7. **Test Connection** should show firmware and live power/SOC. In setup, Next
+   saves the tested values. Editing a value requires another successful test. In
+   Settings, Test Connection uses the draft values; the panel's Save persists
+   them separately.
+8. Check grid/battery direction and approximate values against the Tesla app
+   before relying on solar-based EV charging. Cloud displays may lag local data.
+
+## Credentials and TLS
+
+The password uses ChargeHA's normal plugin secret storage. Configure and retain
+ChargeHA's `ENCRYPTION_KEY` to encrypt it at rest; the core secret store falls
+back to plaintext when encryption is not configured. Restrict access to
+ChargeHA's UI and data backups, which can expose configuration or credentials.
+
+Gateways use self-signed certificates. Certificate verification is disabled
+**only for this plugin's HTTPS requests**, not process-wide. Traffic is
+encrypted but the Gateway's identity is not certificate-verified. Use a trusted
+LAN and verify the configured address. The client does not follow HTTP
+redirects. Login credentials are sent only to that configured host; session
+cookies remain in memory and are cleared on disconnect. Authentication/JSON
+parsing errors omit response bodies.
+
+## Protocol and telemetry
+
+| Endpoint                     | Purpose                                      |
+| ---------------------------- | -------------------------------------------- |
+| `POST /api/login/Basic`      | Customer login; session cookie or JSON token |
+| `GET /api/status`            | Identity and firmware, without login         |
+| `GET /api/meters/aggregates` | Site, solar, load and battery power          |
+| `GET /api/system_status/soe` | Battery percentage                           |
+
+Poll interval is 10 seconds. HTTPS requests use a 10-second socket inactivity
+timeout. Concurrent reads share login; a protected request receiving 401/403
+reauthenticates and retries once, then fails rather than looping indefinitely.
+
+Power is rounded to watts. Positive grid means **import**; negative means
+export. Positive battery means **discharge**; negative means charge. Solar and
+home power are clamped to zero for small negative meter noise. Voltage is
+optional. SOC must be finite and between 0 and 100.
+
+Each aggregate meter must have finite power and a valid
+`last_communication_time`. The oldest timestamp must be within the configured
+age limit; equality is allowed. A timestamp more than five seconds ahead of the
+server is rejected. Keep both clocks synchronized. SOC has no independent
+freshness timestamp in this response; it is read on every poll. `lastUpdated`
+records the successful local poll time.
+
+## Failure and recovery
+
+Missing, malformed, stale or future-dated required meter data fails the poll; it
+is never silently reused as a new good reading. ChargeHA's existing EnergyPoller
+emits `pollFailed` with zero power and an error, and retries on subsequent
+polls.
+
+In Auto's solar-only path, this prevents a new solar start and stops existing
+solar charging on the next controller iteration. Fresh readings permit recovery.
+This is **not a global charging interlock**: explicit Charge Now and charge
+schedules can still charge without solar telemetry. This plugin does not change
+those core semantics.
+
+For login failures, verify the local password and email first; a 401 alone does
+not establish that the firmware removed local access. For connection failures,
+check the server/container route and port 443. For stale/future readings, check
+Gateway meter reporting and both clocks instead of disabling freshness checks.
+
+## Development and verification
+
+Run `deno task check:all` from the repository root. Plugin server tests exercise
+transport errors/timeouts, authentication, validation, encrypted config storage,
+connection-test cleanup, and real poller/controller failure and recovery with
+fake hardware. Client tests exercise wizard validation, explicit save, draft
+connection tests, pending/error feedback and network-free gallery specimens.
+
+Run `deno task dev:client` and open `/components` for static setup and
+connection feedback examples. They do not query a Gateway. Live experience
+covers one Gateway 2 installation; daytime/export scenarios and failure recovery
+are simulated test evidence, not a multi-device or multi-day field validation
+claim.
