@@ -184,12 +184,16 @@ request rather than merely abandoning its promise.
 
 A failed cycle stays explicitly unavailable throughout cooldown. The shared
 poller backs off at 30, 60, 120, then 300 seconds, with up to 10% positive
-jitter and a five-minute cap. Fresh successful data resets this backoff. HTTP
-429 and 503 additionally activate a client-wide cooldown: `Retry-After` seconds
-or an HTTP date are respected, capped at one hour; absent/invalid/past values
-use five minutes. All client endpoints, including login, observe that cooldown.
-Retry hints never cause an earlier retry than the shared backoff. There is no
-cloud fallback and no reuse of stale readings as fresh charging input.
+jitter and a five-minute cap on that ladder. The actual delay is never shorter
+than the active adapter's configured polling interval, even if that interval
+exceeds five minutes. For example, a 60-second adapter waits at least 60 seconds
+after its first failure, not 30. Fresh successful data resets the backoff while
+preserving the normal interval. HTTP 429 and 503 additionally activate a
+client-wide cooldown: `Retry-After` seconds or an HTTP date are respected,
+capped at one hour; absent/invalid/past values use five minutes. All client
+endpoints, including login, observe that cooldown. Retry hints never cause an
+earlier retry than the shared backoff. There is no cloud fallback and no reuse
+of stale readings as fresh charging input.
 
 At debug log level, cycle timing and success/failure category are recorded
 without credentials or payloads. Normal logs show retry delay; plugin logs keep

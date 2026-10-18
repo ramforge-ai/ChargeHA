@@ -25,7 +25,10 @@ export async function flushPoller(): Promise<void> {
   );
 }
 
-export function guardedPollerHarness(ready = Promise.resolve()) {
+export function guardedPollerHarness(
+  ready = Promise.resolve(),
+  pollIntervalSeconds = 10,
+) {
   const reads: {
     signal?: AbortSignal;
     resolve: (data: EnergyData) => void;
@@ -40,7 +43,7 @@ export function guardedPollerHarness(ready = Promise.resolve()) {
       reconfigurations.push(reads.length);
       return Promise.resolve();
     },
-    pollIntervalSeconds: () => 10,
+    pollIntervalSeconds: () => pollIntervalSeconds,
     getRealtimeData: (_load, signal) =>
       new Promise((resolve, reject) => reads.push({ signal, resolve, reject })),
   });

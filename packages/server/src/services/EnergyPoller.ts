@@ -107,7 +107,18 @@ export class EnergyPoller {
       this.polling = null;
       this.controller = null;
       if (generation !== this.generation) return;
-      const delay = this.retryDelayMs || this.em.pollIntervalSeconds() * 1000;
+      // A retry must never accelerate an adapter's normal cadence. Apply this
+      // floor here so it also covers unexpected poll-processing failures, and
+      // intervals longer than the retry ladder's five-minute cap.
+      const delay = Math.max(
+        this.retryDelayMs,
+        this.em.pollIntervalSeconds() * 1000,
+      );
+      if (this.retryDelayMs > 0) {
+        this.logger.info(
+          `Energy polling retry in ${Math.ceil(delay / 1000)}s`,
+        );
+      }
       this.timer = setTimeout(() => this.launch(generation), delay);
     });
   }
@@ -227,9 +238,6 @@ export class EnergyPoller {
       this.retryDelayMs = energyRetryDelayMs(
         error,
         this.consecutivePollFailures,
-      );
-      this.logger.info(
-        `Energy polling retry in ${Math.ceil(this.retryDelayMs / 1000)}s`,
       );
 
       // Record the failure as a zero-valued breadcrumb so DataRecorder writes a

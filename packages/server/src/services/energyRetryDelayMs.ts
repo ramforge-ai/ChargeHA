@@ -1,5 +1,6 @@
 // Retry hints are durations, not adapter-specific HTTP details. Never retry
 // before a server's bounded hint, and only add positive jitter.
+// EnergyPoller additionally floors this delay at the adapter's normal interval.
 export function energyRetryDelayMs(
   error: unknown,
   failures: number,
