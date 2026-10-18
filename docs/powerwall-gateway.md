@@ -36,7 +36,9 @@ plugin.
    [Finding your Gateway password](#finding-your-gateway-password) below, also
    available directly beneath the password field in setup and Settings.
 6. Leave maximum telemetry age at **60 seconds** unless you have a reason to
-   change it. The allowed range is 10–300 seconds.
+   change it. The allowed range is 10–300 seconds. Leave the advanced polling
+   interval at its **30-second** default; it controls the wait after each
+   completed poll, not the age of readings the plugin accepts.
 7. **Test Connection** should show firmware and live power/SOC. In setup, Next
    saves the tested values. Editing a value requires another successful test. In
    Settings, Test Connection uses the draft values; the panel's Save persists
@@ -158,9 +160,12 @@ connection tests, pending/error feedback and network-free gallery specimens.
 
 Run `deno task dev:client` and open `/components` for static setup and
 connection feedback examples. They do not query a Gateway. Live experience
-covers one Gateway 2 installation; daytime/export scenarios and failure recovery
-are simulated test evidence, not a multi-device or multi-day field validation
-claim.
+covers one Gateway 2 installation. The guarded poller has recovered from real
+Gateway timeouts without an application restart, including a prolonged outage.
+This does not establish the cause of those timeouts or compatibility with other
+hardware. The observed outages occurred while the car was unplugged or charging
+was blocked by schedule, so stopping active solar charging during an outage is
+covered by simulated integration tests, not that field observation.
 
 ## Polling safeguards
 
