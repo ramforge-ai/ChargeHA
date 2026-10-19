@@ -3,32 +3,15 @@ import https from "node:https";
 const REQUEST_TIMEOUT_MS = 10_000;
 const LOGIN_PATH = "/api/login/Basic";
 
-export class PowerwallGatewayAuthError extends Error {
-  constructor(message: string, cause?: Error) {
-    super(message, { cause });
-    this.name = "PowerwallGatewayAuthError";
-  }
-}
-
-interface ConnectionErrorOptions {
-  cause?: Error;
-  status?: number;
-  retryAfterMs?: number;
-}
-
-export class PowerwallGatewayConnectionError extends Error {
-  readonly status?: number;
-  readonly retryAfterMs?: number;
-  constructor(
-    message: string,
-    options: ConnectionErrorOptions = {},
-  ) {
-    super(message, { cause: options.cause });
-    this.status = options.status;
-    this.retryAfterMs = options.retryAfterMs;
-    this.name = "PowerwallGatewayConnectionError";
-  }
-}
+import {
+  PowerwallGatewayAuthError,
+  PowerwallGatewayConnectionError,
+  safePowerwallError,
+} from "./errors.ts";
+export {
+  PowerwallGatewayAuthError,
+  PowerwallGatewayConnectionError,
+} from "./errors.ts";
 
 export interface PowerwallHttpResponse {
   status: number;
@@ -72,9 +55,11 @@ export const makeNodeHttpsPowerwallHttp = (
   return {
     close: () => agent.destroy(),
     request(host, path, method, headers, body, signal) {
-      return new Promise((resolve, reject) => {
+      return new Promise<PowerwallHttpResponse>((resolve, reject) => {
         if (signal?.aborted) {
-          reject(signal.reason);
+          reject(
+            new PowerwallGatewayConnectionError("Powerwall request cancelled"),
+          );
           return;
         }
         const state = { settled: false };
@@ -92,11 +77,11 @@ export const makeNodeHttpsPowerwallHttp = (
           res.on("data", (chunk: Uint8Array) => chunks.push(chunk));
           res.on(
             "error",
-            () => fail(new Error("Powerwall response interrupted")),
+            () => fail("Powerwall response interrupted"),
           );
           res.on(
             "aborted",
-            () => fail(new Error("Powerwall response interrupted")),
+            () => fail("Powerwall response interrupted"),
           );
           res.on("end", () => {
             if (state.settled) return;
@@ -116,28 +101,27 @@ export const makeNodeHttpsPowerwallHttp = (
           clearTimeout(deadline);
           signal?.removeEventListener("abort", abort);
         };
-        const fail = (error: Error) => {
+        const fail = (message: string) => {
           if (state.settled) return;
           cleanup();
-          req.destroy(error);
+          req.destroy();
           reject(
             new PowerwallGatewayConnectionError(
-              `Powerwall request to https://${host}${path} failed: ${error.message}`,
-              { cause: error },
+              message,
             ),
           );
         };
-        const abort = () => fail(new Error("Powerwall request cancelled"));
+        const abort = () => fail("Powerwall request cancelled");
         // Wall-clock deadline also bounds DNS, socket queueing and trickling bodies.
         const deadline = setTimeout(
-          () => fail(new Error(`timed out after ${timeoutMs}ms`)),
+          () => fail(`Powerwall request timed out after ${timeoutMs}ms`),
           timeoutMs,
         );
         req.on(
           "timeout",
-          () => fail(new Error(`timed out after ${timeoutMs}ms`)),
+          () => fail(`Powerwall request timed out after ${timeoutMs}ms`),
         );
-        req.on("error", fail);
+        req.on("error", () => fail("Powerwall transport connection failed"));
         signal?.addEventListener("abort", abort, { once: true });
         if (signal?.aborted) {
           abort();
@@ -145,6 +129,8 @@ export const makeNodeHttpsPowerwallHttp = (
         }
         if (body) req.write(body);
         req.end();
+      }).catch((error) => {
+        throw safePowerwallError(error);
       });
     },
   };

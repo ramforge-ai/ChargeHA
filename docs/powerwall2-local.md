@@ -189,12 +189,19 @@ schedules are not changed.
 The shared energy poller permits only one cycle in flight. One AbortController
 belongs to each polling loop. Stop and reconfigure cancel it, drain outstanding
 work, and discard cancelled results. Restarts are serialized; explicit stop
-prevents queued configuration work from restarting the poller. Powerwall reads
-aggregates then SOC sequentially through a client-owned HTTPS pool capped at one
-connection. Each request has a 10-second absolute deadline; there is no adapter
-in-flight deduplication or 20-second overall deadline. Authentication/retry can
-therefore make a complete poll take longer than 20 seconds, but cannot overlap
-the next scheduled poll. Cancellation destroys the active request.
+prevents queued configuration work from restarting the poller. Stop is terminal
+for this internal service instance; restarting a stopped service requires a new
+EnergyPoller. Constructor/config changes are the production restart callers;
+this is not a new public API. Cancelled readiness/reconfiguration rejections are
+silent, while current startup failures remain visible and the queue remains
+recoverable. Synchronous event listeners may stop/restart polling, so
+cancellation is rechecked between update, success/failure and recovery
+publication. Powerwall reads aggregates then SOC sequentially through a
+client-owned HTTPS pool capped at one connection. Each request has a 10-second
+absolute deadline; there is no adapter in-flight deduplication or 20-second
+overall deadline. Authentication/retry can therefore make a complete poll take
+longer than 20 seconds, but cannot overlap the next scheduled poll. Cancellation
+destroys the active request.
 
 Success and failure both wait the configured interval after completion. HTTP 429
 and 503 activate the plugin client's cooldown: Retry-After seconds or an HTTP
@@ -203,9 +210,20 @@ minutes. All endpoints, including login, fail fast during cooldown without
 network traffic. There is no shared retry ladder or retry hint in core, cloud
 fallback, or reuse of stale readings as fresh charging input.
 
-The plugin persists connection failures and throttles repeated failures to one
-entry per five minutes, without response bodies or credentials. The shared
-poller retains its existing failure/recovery breadcrumbs for all integrations.
+The plugin persists a phase-labelled connection failure and throttles repeated
+direct-read failures to one entry per five minutes. The shared poller separately
+retains its existing failed-poll/recovery breadcrumbs for all integrations. A
+failed connection followed by the first failed scheduled poll intentionally
+produces at most two startup entries (connection and poll), not one shared
+outage entry; subsequent scheduled failures remain throttled. There is no
+duplicate adapter entry for each scheduled poll.
+
+Unknown dependency/transport errors are normalized inside the plugin before
+reaching core Logs, failure events or connection-test results. Trusted plugin
+diagnostics retain authentication, HTTP status/cooldown, timeout, cancellation
+and telemetry-validation categories, but arbitrary error messages/causes and
+response bodies are not forwarded. Connection-test construction failures return
+a structured safe failure; cleanup failures do not replace a primary diagnosis.
 No induced hardware outage or load test is needed for the regression suite.
 
 ## Upgrade from the pre-review plugin ID

@@ -72,7 +72,7 @@ describe("Powerwall poll containment", () => {
   });
   it("does not launch a sibling after a failed aggregate read", async () => {
     const result = adapter.getRealtimeData();
-    const rejected = expect(result).rejects.toThrow("offline");
+    const rejected = expect(result).rejects.toThrow("connection failed");
     api.requests[0].reject(new Error("offline"));
     await rejected;
     expect(api.requests).toHaveLength(1);
@@ -89,7 +89,7 @@ describe("Powerwall poll containment", () => {
   it("propagates the poller's cancellation without starting another read", async () => {
     const controller = new AbortController();
     const result = adapter.getRealtimeData(controller.signal);
-    const rejected = expect(result).rejects.toThrow("reconfigured");
+    const rejected = expect(result).rejects.toThrow("cancelled");
     controller.abort(new Error("reconfigured"));
     await rejected;
     expect(api.requests).toHaveLength(1);

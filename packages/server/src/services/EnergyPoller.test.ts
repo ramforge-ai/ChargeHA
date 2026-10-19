@@ -213,6 +213,9 @@ describe("EnergyPoller", () => {
 
     it("restart after explicit stop leaves the poller stopped", async () => {
       await poller.restart();
+      expect(testable(poller).polling).toBeNull();
+      expect(poller.tryGetRealtimeSnapshot()).toBeNull();
+      expect(emitter.events).toEqual([]);
       await poller.stop();
     });
   });

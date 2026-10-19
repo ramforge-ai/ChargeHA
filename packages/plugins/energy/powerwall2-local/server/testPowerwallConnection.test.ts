@@ -1,3 +1,4 @@
+import { PowerwallGatewayAuthError } from "./errors.ts";
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { Logger } from "@chargeha/server/lib/Logger";
@@ -53,10 +54,74 @@ describe("Powerwall connection test lifecycle", () => {
     );
     expect(await ctx.plugin.testConnection(input)).toEqual({
       success: false,
-      error: "Connection refused",
+      error:
+        "Powerwall connection failed; check Gateway availability and credentials",
     });
     expect(api.clearCalls).toBe(1);
     expect(mocked.calls).toHaveLength(1);
     ctx.db.close();
+  });
+  it("returns a safe structured factory failure", async () => {
+    const ctx = await pluginHarness();
+    using mocked = stub(
+      ctx.plugin,
+      "createAdapter",
+      () => Promise.reject(new Error("PRIVATE_FACTORY_MARKER")),
+    );
+    try {
+      expect(await ctx.plugin.testConnection(input)).toEqual({
+        success: false,
+        error:
+          "Powerwall connection failed; check Gateway availability and credentials",
+      });
+      expect(mocked.calls).toHaveLength(1);
+    } finally {
+      ctx.db.close();
+    }
+  });
+  [true, false].forEach((connectFails) => {
+    it(`cleanup failure preserves primary result (connectFails=${connectFails})`, async () => {
+      const ctx = await pluginHarness();
+      const api = new FakePowerwallApi(aggregates());
+      const adapter = factory(api)();
+      using mocked = stub(
+        ctx.plugin,
+        "createAdapter",
+        () => Promise.resolve(adapter),
+      );
+      using connect = stub(
+        adapter,
+        "connect",
+        () => {
+          if (connectFails) {
+            return Promise.reject(
+              new PowerwallGatewayAuthError(
+                "Powerwall Gateway rejected the configured customer credentials",
+              ),
+            );
+          }
+          return Promise.resolve();
+        },
+      );
+      using disconnect = stub(
+        adapter,
+        "disconnect",
+        () => Promise.reject(new Error("PRIVATE_CLEANUP_MARKER")),
+      );
+      try {
+        const result = await ctx.plugin.testConnection(input);
+        expect(result).toEqual({
+          success: false,
+          error: connectFails
+            ? "Powerwall Gateway rejected the configured customer credentials"
+            : "Powerwall connection-test cleanup failed",
+        });
+        expect(mocked.calls).toHaveLength(1);
+        expect(connect.calls).toHaveLength(1);
+        expect(disconnect.calls).toHaveLength(1);
+      } finally {
+        ctx.db.close();
+      }
+    });
   });
 });

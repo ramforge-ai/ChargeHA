@@ -92,7 +92,9 @@ export class EnergyPoller {
       );
       this.tick(controller.signal);
     }).catch((error) => {
-      this.logger.error("Energy poller restart failed:", error);
+      if (!this.stopped) {
+        this.logger.error("Energy poller restart failed:", error);
+      }
     });
     return this.lifecycle;
   }
@@ -201,9 +203,12 @@ export class EnergyPoller {
 
       // Emit energy update for tRPC subscriptions and DataRecorder
       this.eventEmitter.emit("energy_update", { ...realtime, ...cumulative });
+      // Event delivery is synchronous: a listener may stop/restart this loop.
+      if (signal?.aborted) return;
 
       // Emit poll success for notification listener
       this.eventEmitter.emit("energy_poll_success", {});
+      if (signal?.aborted) return;
 
       if (this.consecutivePollFailures > 0) {
         await this.recordPluginLog(
@@ -243,6 +248,7 @@ export class EnergyPoller {
         ...failedCumulative,
       });
 
+      if (signal?.aborted) return;
       // Emit poll failure for notification listener
       this.eventEmitter.emit("energy_poll_failure", {
         error: error instanceof Error ? error.message : String(error),

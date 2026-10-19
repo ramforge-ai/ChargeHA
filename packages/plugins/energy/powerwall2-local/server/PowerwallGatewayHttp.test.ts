@@ -52,7 +52,7 @@ describe("Powerwall HTTPS transport", () => {
     try {
       await expect(
         makeNodeHttpsPowerwallHttp().request("192.0.2.10", "/test", "GET", {}),
-      ).rejects.toThrow("ECONNREFUSED");
+      ).rejects.toThrow("transport connection failed");
     } finally {
       harness.restore();
     }

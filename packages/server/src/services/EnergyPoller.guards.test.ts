@@ -9,6 +9,7 @@ import { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import { Logger } from "../lib/Logger.ts";
 import { MockEnergyPollerAdapter } from "../test-helpers/MockEnergyPollerAdapter.ts";
 import { throwingMock } from "../test-helpers/throwingMock.ts";
+import { stub } from "@std/testing/mock";
 import { testable } from "../test-helpers/Testable.ts";
 
 describe("Energy poll scheduling guards", () => {
@@ -143,5 +144,56 @@ describe("Energy poll scheduling guards", () => {
     await stopped;
     expect(adapter.reads).toHaveLength(0);
     expect(events).toEqual([]);
+  });
+  it("suppresses late reconfigure rejection after stop", async () => {
+    const gate = Promise.withResolvers<void>();
+    adapter.reconfigureGate = gate.promise;
+    using errors = stub(Logger.prototype, "error");
+    const restarting = poller.restart(() => adapter.reconfigure());
+    adapter.reads[0].resolve(sample());
+    await adapter.reconfigureEntered.promise;
+    const stopped = poller.stop();
+    gate.reject(new Error("late reconfigure"));
+    await Promise.all([stopped, restarting]);
+    expect(errors.calls).toHaveLength(0);
+  });
+  it("suppresses late readiness rejection but logs current errors and keeps queue recoverable", async () => {
+    const stopped = poller.stop();
+    adapter.reads[0].resolve(sample());
+    await stopped;
+    adapter = new MockEnergyPollerAdapter(sample());
+    adapter.deferred = true;
+    const gate = Promise.withResolvers<void>();
+    adapter.readyGate = gate.promise;
+    using errors = stub(Logger.prototype, "error");
+    poller = create();
+    await adapter.readyEntered.promise;
+    const stopping = poller.stop();
+    gate.reject(new Error("late readiness"));
+    await stopping;
+    expect(errors.calls).toHaveLength(0);
+    adapter = new MockEnergyPollerAdapter(sample());
+    adapter.readyGate = Promise.reject(new Error("current startup"));
+    poller = create();
+    await adapter.readyEntered.promise;
+    await poller.restart();
+    expect(errors.calls.length).toBeGreaterThan(0);
+    adapter.readyGate = Promise.resolve();
+    adapter.deferred = true;
+    await poller.restart();
+    await adapter.waitForRead(1);
+  });
+  ["success", "failure"].forEach((outcome) => {
+    it(`stop during ${outcome} energy_update suppresses later publication`, async () => {
+      const stopped = Promise.withResolvers<void>();
+      emitter.subscribe("energy_update", () => {
+        void poller.stop().then(stopped.resolve, stopped.reject);
+      });
+      if (outcome === "success") adapter.reads[0].resolve(sample());
+      else adapter.reads[0].reject(new Error("offline"));
+      await stopped.promise;
+      expect(events).toEqual(["update"]);
+      expect(poller.tryGetRealtimeSnapshot()).toBeNull();
+    });
   });
 });

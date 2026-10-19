@@ -1,3 +1,4 @@
+import { PowerwallTelemetryError, safePowerwallError } from "./errors.ts";
 import type {
   DeviceInfo,
   EnergyData,
@@ -19,12 +20,12 @@ const recordAt = (value: unknown, label: string): JsonRecord => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as JsonRecord;
   }
-  throw new Error(`Powerwall telemetry is missing ${label}`);
+  throw new PowerwallTelemetryError(`Powerwall telemetry is missing ${label}`);
 };
 
 const numberAt = (value: unknown, label: string): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  throw new Error(`Powerwall telemetry has invalid ${label}`);
+  throw new PowerwallTelemetryError(`Powerwall telemetry has invalid ${label}`);
 };
 
 const optionalNumberAt = (value: unknown): number | null =>
@@ -40,14 +41,18 @@ const timestampAt = (meter: JsonRecord, label: string): number => {
   const raw = meter.last_communication_time;
   const parsed = typeof raw === "string" ? Date.parse(raw) : Number.NaN;
   if (!Number.isFinite(parsed)) {
-    throw new Error(`Powerwall telemetry has invalid ${label} timestamp`);
+    throw new PowerwallTelemetryError(
+      `Powerwall telemetry has invalid ${label} timestamp`,
+    );
   }
   return parsed;
 };
 
 const usableSoc = (value: number): number => {
   if (value < 0 || value > 100) {
-    throw new Error("Powerwall telemetry has invalid battery state of charge");
+    throw new PowerwallTelemetryError(
+      "Powerwall telemetry has invalid battery state of charge",
+    );
   }
   // The local SOE includes Tesla's 5% buffer, unlike the app's usable SOC.
   // Source: https://github.com/jasonacox/pypowerwall/blob/main/API.md#power-and-energy
@@ -87,14 +92,14 @@ const assertFresh = (
     timestampAt(meters.battery, "battery"),
   ];
   if (Math.max(...timestamps) > nowMs + 5_000) {
-    throw new Error(
+    throw new PowerwallTelemetryError(
       "Powerwall telemetry timestamp is in the future; check Gateway and server clocks",
     );
   }
   const oldest = Math.min(...timestamps);
   const ageSeconds = Math.max(0, nowMs - oldest) / 1000;
   if (ageSeconds > maxStalenessSeconds) {
-    throw new Error(
+    throw new PowerwallTelemetryError(
       `Powerwall telemetry is stale (${
         Math.round(ageSeconds)
       }s old; limit ${maxStalenessSeconds}s)`,
@@ -136,7 +141,7 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
       );
     } catch (error) {
       await this.recordFailure("connection");
-      throw error;
+      throw safePowerwallError(error);
     }
   }
 
@@ -152,10 +157,13 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
       this.lastFailureAt = null;
       return data;
     } catch (error) {
+      if (signal?.aborted) {
+        throw new PowerwallTelemetryError("Powerwall request cancelled");
+      }
       // Scheduled polls already get the core poller's throttled DB breadcrumb.
       // Direct reads (connection tests) have no poller, so log them here.
       if (!signal) await this.recordFailure("poll");
-      throw error;
+      throw safePowerwallError(error);
     }
   }
 

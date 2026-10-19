@@ -1,3 +1,4 @@
+import { safePowerwallError } from "./errors.ts";
 import type { AnyRouter } from "@trpc/server";
 import type { EnergySourceAdapter } from "@chargeha/shared";
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
@@ -48,7 +49,32 @@ export class PowerwallGatewayPlugin implements EnergyPlugin {
   }
 
   async testConnection(input: PowerwallGatewayConfig) {
-    const adapter = await this.createAdapter(input);
+    try {
+      const adapter = await this.createAdapter(input);
+      const result = await this.readConnection(adapter);
+      try {
+        await adapter.disconnect();
+      } catch {
+        // Cleanup must not erase a primary connection diagnosis or expose raw errors.
+        this.deps.log.warn("Powerwall connection-test cleanup failed");
+        if (result.success) {
+          return {
+            success: false as const,
+            error: "Powerwall connection-test cleanup failed",
+          };
+        }
+      }
+      return result;
+    } catch (error) {
+      await this.deps.dbLog.error("Powerwall connection-test setup failed");
+      return {
+        success: false as const,
+        error: safePowerwallError(error).message,
+      };
+    }
+  }
+
+  private async readConnection(adapter: EnergySourceAdapter) {
     try {
       await adapter.connect();
       const device = await adapter.getDeviceInfo();
@@ -57,10 +83,8 @@ export class PowerwallGatewayPlugin implements EnergyPlugin {
     } catch (error) {
       return {
         success: false as const,
-        error: error instanceof Error ? error.message : "Connection failed",
+        error: safePowerwallError(error).message,
       };
-    } finally {
-      await adapter.disconnect();
     }
   }
 
