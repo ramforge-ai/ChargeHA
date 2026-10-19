@@ -27,7 +27,7 @@ const nextState = (
 
 export const powerwallGatewaySetupStep: PluginStepDef = {
   id: "powerwall2-local-setup",
-  label: "Tesla Powerwall 2 (Local)",
+  label: "Tesla Powerwall 2 via Gateway (Local)",
   useStep: () => {
     const { data } = trpc.plugin.energy.powerwall2_local.getConfig.useQuery();
     const saveMutation = trpc.plugin.energy.powerwall2_local.setConfig

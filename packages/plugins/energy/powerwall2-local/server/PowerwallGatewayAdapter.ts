@@ -208,7 +208,7 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
       : "Unknown firmware";
     return {
       id: din,
-      name: "Tesla Powerwall 2 (Local)",
+      name: "Tesla Powerwall 2 via Gateway (Local)",
       manufacturer: "Tesla",
       model: version,
     };

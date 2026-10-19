@@ -16,14 +16,14 @@ import { createPowerwallGatewayRouter } from "./router.ts";
 
 export class PowerwallGatewayPlugin implements EnergyPlugin {
   readonly id = "powerwall2_local";
-  readonly displayName = "Tesla Powerwall 2 (Local)";
+  readonly displayName = "Tesla Powerwall 2 via Gateway (Local)";
   readonly vendor = "Tesla";
   readonly settingsComponentKey = "powerwall2-local-config";
   readonly configDef = powerwallGatewayConfigDef;
   readonly secretKeys = POWERWALL_GATEWAY_SECRET_KEYS;
 
   constructor(private readonly deps: PluginDependencies) {
-    deps.log.info("Tesla Powerwall 2 (Local) plugin initialized");
+    deps.log.info("Tesla Powerwall 2 via Gateway (Local) plugin initialized");
   }
 
   async createAdapter(

@@ -15,7 +15,7 @@ const success = {
   device: {
     id: "example-gateway",
     manufacturer: "Tesla",
-    name: "Tesla Powerwall 2 (Local)",
+    name: "Tesla Powerwall 2 via Gateway (Local)",
     model: "26.34.0",
   },
   realtime: {

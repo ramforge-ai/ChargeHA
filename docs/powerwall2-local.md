@@ -1,4 +1,4 @@
-# Tesla Powerwall 2 (Local)
+# Tesla Powerwall 2 via Gateway (Local)
 
 The `powerwall2_local` energy plugin reads site-level solar production, grid
 import/export, home consumption, battery power and battery state of charge from
@@ -25,8 +25,8 @@ plugin.
 1. Ensure the ChargeHA **server/container** can reach the Gateway on HTTPS
    port 443. Reserve the Gateway's address in DHCP. Phone/browser access alone
    is not enough.
-2. Select **Tesla Powerwall 2 (Local)** as the energy source in setup or
-   Settings.
+2. Select **Tesla Powerwall 2 via Gateway (Local)** as the energy source in
+   setup or Settings.
 3. Enter the Gateway's IPv4 address or DNS hostname, without scheme, port or
    path. IPv6 literal input is not currently supported.
 4. Enter the email associated with the Gateway's local customer login if
@@ -169,13 +169,7 @@ fake hardware. Client tests exercise wizard validation, explicit save, draft
 connection tests, pending/error feedback and network-free gallery specimens.
 
 Run `deno task dev:client` and open `/components` for static setup and
-connection feedback examples. They do not query a Gateway. Live experience
-covers one Gateway 2 installation. The guarded poller has recovered from real
-Gateway timeouts without an application restart, including a prolonged outage.
-This does not establish the cause of those timeouts or compatibility with other
-hardware. The observed outages occurred while the car was unplugged or charging
-was blocked by schedule, so stopping active solar charging during an outage is
-covered by simulated integration tests, not that field observation.
+connection feedback examples. They do not query a Gateway.
 
 ## Polling safeguards
 
@@ -186,37 +180,27 @@ remains at its existing configured value (default 60 seconds). A slower interval
 trades quicker solar tracking for less Gateway traffic; charging thresholds and
 schedules are not changed.
 
-The shared energy poller permits only one cycle in flight. One AbortController
-belongs to each polling loop. Stop and reconfigure cancel it, drain outstanding
-work, and discard cancelled results. Restarts are serialized; explicit stop
-prevents queued configuration work from restarting the poller. Stop is terminal
-for this internal service instance; restarting a stopped service requires a new
-EnergyPoller. Constructor/config changes are the production restart callers;
-this is not a new public API. Cancelled readiness/reconfiguration rejections are
-silent, while current startup failures remain visible and the queue remains
-recoverable. Synchronous event listeners may stop/restart polling, so
-cancellation is rechecked between update, success/failure and recovery
-publication. Powerwall reads aggregates then SOC sequentially through a
-client-owned HTTPS pool capped at one connection. Each request has a 10-second
-absolute deadline; there is no adapter in-flight deduplication or 20-second
-overall deadline. Authentication/retry can therefore make a complete poll take
-longer than 20 seconds, but cannot overlap the next scheduled poll. Cancellation
-destroys the active request.
+The shared energy poller permits only one cycle in flight. Stop and reconfigure
+cancel outstanding work and discard cancelled results. Restarts wait for the
+previous cycle to finish before replacing the adapter. Powerwall reads
+aggregates then SOC sequentially through an HTTPS pool capped at one connection.
+Each request has a 10-second absolute deadline. Authentication and retry can
+make a complete poll take longer than 20 seconds, but cannot overlap the next
+scheduled poll. Cancellation destroys the active request.
 
 Success and failure both wait the configured interval after completion. HTTP 429
 and 503 activate the plugin client's cooldown: Retry-After seconds or an HTTP
 date are respected, capped at one hour; absent/invalid/past values use five
 minutes. All endpoints, including login, fail fast during cooldown without
-network traffic. There is no shared retry ladder or retry hint in core, cloud
-fallback, or reuse of stale readings as fresh charging input.
+network traffic. There is no cloud fallback or reuse of stale readings as fresh
+charging input.
 
 The plugin persists a phase-labelled connection failure and throttles repeated
 direct-read failures to one entry per five minutes. The shared poller separately
 retains its existing failed-poll/recovery breadcrumbs for all integrations. A
-failed connection followed by the first failed scheduled poll intentionally
-produces at most two startup entries (connection and poll), not one shared
-outage entry; subsequent scheduled failures remain throttled. There is no
-duplicate adapter entry for each scheduled poll.
+failed connection followed by the first failed scheduled poll can produce two
+startup entries (connection and poll); subsequent scheduled failures remain
+throttled.
 
 Unknown dependency/transport errors are normalized inside the plugin before
 reaching core Logs, failure events or connection-test results. Trusted plugin
@@ -224,44 +208,3 @@ diagnostics retain authentication, HTTP status/cooldown, timeout, cancellation
 and telemetry-validation categories, but arbitrary error messages/causes and
 response bodies are not forwarded. Connection-test construction failures return
 a structured safe failure; cleanup failures do not replace a primary diagnosis.
-No induced hardware outage or load test is needed for the regression suite.
-
-## Upgrade from the pre-review plugin ID
-
-This revision renames `powerwall_gateway` to `powerwall2_local`. Fresh installs
-need no migration. Existing pre-review installations must perform the following
-**scoped, offline deployment migration before starting this revision**. It is
-not automatically run by the plugin. Do not change a running database.
-
-1. Stop only the ChargeHA app during an authorized maintenance window, take a
-   consistent database backup, and retain the existing ENCRYPTION_KEY.
-2. On the backup first, execute the SQL below in a transaction. Existing new-ID
-   rows must not exist: the primary-key conflict intentionally aborts rather
-   than silently overwriting either configuration. Roll back and reconcile any
-   collision before proceeding.
-3. Verify all five settings and the encrypted password still read correctly with
-   the same key. Only then repeat on the stopped deployment database.
-4. Start this revision and check Settings/Test Connection. Keep the backup and
-   old image for rollback; do not run both versions against the same database.
-
-```sql
-BEGIN IMMEDIATE;
-UPDATE config
-SET key = 'powerwall2_local.' || substr(key, length('powerwall_gateway.') + 1)
-WHERE key IN (
-  'powerwall_gateway.host', 'powerwall_gateway.email',
-  'powerwall_gateway.password', 'powerwall_gateway.max_staleness_seconds',
-  'powerwall_gateway.poll_interval_seconds'
-);
-UPDATE config SET value = 'powerwall2_local'
-WHERE key IN ('energy_adapter_type', 'wizard_energy_type') AND value = 'powerwall_gateway';
-UPDATE config SET value = 'powerwall2-local-setup'
-WHERE key = 'wizard_step' AND value = 'powerwall-gateway-setup';
-COMMIT;
-```
-
-The key rename preserves value bytes and is_encrypted unchanged; AES-GCM here
-does not bind ciphertext to the config key. Historical log plugin IDs remain
-unchanged for provenance. The fixture migration test executes this SQL against
-an isolated in-memory encrypted database, checks settings, selection and secret
-recovery, and proves collision rollback. This task has not migrated a live DB.

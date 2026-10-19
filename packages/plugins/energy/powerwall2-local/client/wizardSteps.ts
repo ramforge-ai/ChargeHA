@@ -8,7 +8,7 @@ export const powerwallGatewayWizardSteps: PluginStepDef[] = [
 
 export const powerwallGatewayOption: EnergyPluginOption = {
   id: "powerwall2_local",
-  label: "Tesla Powerwall 2 (Local)",
+  label: "Tesla Powerwall 2 via Gateway (Local)",
   description:
     "Powerwall 2 with Backup Gateway 2 (tested). Gateway 1 untested. Powerwall 3 not supported. Read-only local solar, grid, home and battery telemetry.",
   iconKey: "server",

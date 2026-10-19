@@ -11,7 +11,7 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
     key: "host",
     label: "Gateway IP address",
     help:
-      "LAN IP of the Tesla Powerwall 2 (Local). Give it a DHCP reservation so this address stays fixed.",
+      "LAN IP of the Tesla Gateway. Give it a DHCP reservation so this address stays fixed.",
     placeholder: "192.0.2.10",
     width: 160,
     required: true,
