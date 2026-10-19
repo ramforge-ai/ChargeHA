@@ -196,4 +196,50 @@ describe("Energy poll scheduling guards", () => {
       expect(poller.tryGetRealtimeSnapshot()).toBeNull();
     });
   });
+  [false, true].forEach((sharedReadiness) => {
+    it(`restart cancels stale readiness diagnostics (shared=${sharedReadiness})`, async () => {
+      const stopped = poller.stop();
+      adapter.reads[0].resolve(sample());
+      await stopped;
+      adapter = new MockEnergyPollerAdapter(sample());
+      adapter.deferred = true;
+      const gate = Promise.withResolvers<void>();
+      adapter.readyGate = gate.promise;
+      using errors = stub(Logger.prototype, "error");
+      poller = create();
+      await adapter.readyEntered.promise;
+      const next = poller.restart(() => {
+        if (!sharedReadiness) adapter.readyGate = Promise.resolve();
+        return Promise.resolve();
+      });
+      const failure = new Error("initialization failed");
+      gate.reject(failure);
+      await next;
+      expect(errors.calls).toHaveLength(sharedReadiness ? 1 : 0);
+      if (sharedReadiness) {
+        expect(errors.calls[0].args).toEqual([
+          "Energy poller restart failed:",
+          failure,
+        ]);
+        adapter.readyGate = Promise.resolve();
+        await poller.restart();
+      }
+      await adapter.waitForRead(1);
+      expect(events).toEqual([]);
+    });
+  });
+  it("restart cancels an active reconfiguration diagnosis without poisoning the queue", async () => {
+    const gate = Promise.withResolvers<void>();
+    adapter.reconfigureGate = gate.promise;
+    using errors = stub(Logger.prototype, "error");
+    const first = poller.restart(() => adapter.reconfigure());
+    adapter.reads[0].resolve(sample());
+    await adapter.reconfigureEntered.promise;
+    const next = poller.restart();
+    gate.reject(new Error("obsolete reconfiguration"));
+    await Promise.all([first, next]);
+    await adapter.waitForRead(2);
+    expect(errors.calls).toHaveLength(0);
+    expect(events).toEqual([]);
+  });
 });

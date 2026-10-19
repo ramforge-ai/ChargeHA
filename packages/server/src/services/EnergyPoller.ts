@@ -79,18 +79,26 @@ export class EnergyPoller {
     this.lifecycle = this.lifecycle.then(async () => {
       await this.drainLoop();
       if (this.stopped) return;
-      await beforeStart?.();
-      if (this.stopped) return;
+      // Own cancellation throughout reconfiguration/readiness and the polling loop.
+      // A queued operation gets a fresh controller only after its predecessor drains.
       const controller = new AbortController();
       this.controller = controller;
-      await this.em.ready();
-      if (this.stopped || controller.signal.aborted) return;
-      this.consecutivePollFailures = 0;
-      this.lastFailureLoggedAtMs = 0;
-      this.logger.info(
-        `Polling every ${this.em.pollIntervalSeconds()}s after completion`,
-      );
-      this.tick(controller.signal);
+      try {
+        await beforeStart?.();
+        if (controller.signal.aborted) return;
+        await this.em.ready();
+        if (controller.signal.aborted) return;
+        this.consecutivePollFailures = 0;
+        this.lastFailureLoggedAtMs = 0;
+        this.logger.info(
+          `Polling every ${this.em.pollIntervalSeconds()}s after completion`,
+        );
+        this.tick(controller.signal);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          this.logger.error("Energy poller restart failed:", error);
+        }
+      }
     }).catch((error) => {
       if (!this.stopped) {
         this.logger.error("Energy poller restart failed:", error);
