@@ -10,14 +10,22 @@ export class PowerwallGatewayAuthError extends Error {
   }
 }
 
+interface ConnectionErrorOptions {
+  cause?: Error;
+  status?: number;
+  retryAfterMs?: number;
+}
+
 export class PowerwallGatewayConnectionError extends Error {
+  readonly status?: number;
+  readonly retryAfterMs?: number;
   constructor(
     message: string,
-    cause?: Error,
-    readonly status?: number,
-    readonly retryAfterMs?: number,
+    options: ConnectionErrorOptions = {},
   ) {
-    super(message, { cause });
+    super(message, { cause: options.cause });
+    this.status = options.status;
+    this.retryAfterMs = options.retryAfterMs;
     this.name = "PowerwallGatewayConnectionError";
   }
 }
@@ -115,7 +123,7 @@ export const makeNodeHttpsPowerwallHttp = (
           reject(
             new PowerwallGatewayConnectionError(
               `Powerwall request to https://${host}${path} failed: ${error.message}`,
-              error,
+              { cause: error },
             ),
           );
         };
@@ -178,7 +186,7 @@ const isUnauthorized = (status: number): boolean =>
   status === 401 || status === 403;
 
 export class PowerwallGatewayClient implements PowerwallGatewayApi {
-  private cookie = "";
+  private cookie: string | null = null;
   private loginInFlight: Promise<string> | null = null;
   private cooldownUntil = 0;
 
@@ -194,7 +202,7 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
     const first = await this.authenticatedRequest(path, signal);
     if (!isUnauthorized(first.status)) return this.parse(path, first);
 
-    this.cookie = "";
+    this.cookie = null;
     const retry = await this.authenticatedRequest(path, signal);
     if (isUnauthorized(retry.status)) {
       throw new PowerwallGatewayAuthError(
@@ -216,7 +224,7 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
   }
 
   clearSession(): void {
-    this.cookie = "";
+    this.cookie = null;
     this.http.close?.();
   }
 
@@ -226,9 +234,7 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
     if (remaining > 0) {
       throw new PowerwallGatewayConnectionError(
         "Powerwall Gateway is cooling down after a rate-limit/service response",
-        undefined,
-        undefined,
-        remaining,
+        { retryAfterMs: remaining },
       );
     }
   }
@@ -318,9 +324,7 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
     this.cooldownUntil = Math.max(this.cooldownUntil, Date.now() + delay);
     throw new PowerwallGatewayConnectionError(
       `Powerwall Gateway returned HTTP ${response.status}; cooling down`,
-      undefined,
-      response.status,
-      delay,
+      { status: response.status, retryAfterMs: delay },
     );
   }
 
@@ -329,8 +333,7 @@ export class PowerwallGatewayClient implements PowerwallGatewayApi {
     if (!isSuccessful(response.status)) {
       throw new PowerwallGatewayConnectionError(
         `Powerwall Gateway ${this.host}${path} returned HTTP ${response.status}`,
-        undefined,
-        response.status,
+        { status: response.status },
       );
     }
     return parseRecord(response.body, `Powerwall Gateway ${path}`);

@@ -14,7 +14,7 @@ export function PowerwallGatewayForm(
 ): JSX.Element {
   const [values, setValues] = useState(initial);
   const revision = useRef(0);
-  const test = trpc.plugin.energy.powerwall_gateway.testConnection
+  const test = trpc.plugin.energy.powerwall2_local.testConnection
     .useMutation();
   const input = valuesFrom(values);
   const onChange = (key: string, value: string) => {

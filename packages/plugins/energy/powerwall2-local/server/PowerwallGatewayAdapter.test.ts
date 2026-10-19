@@ -78,7 +78,7 @@ describe("PowerwallGatewayAdapter", () => {
   it("reports the Gateway identity and firmware", async () => {
     await expect(makeAdapter().getDeviceInfo()).resolves.toEqual({
       id: "1152100-14-E--TEST",
-      name: "Tesla Energy Gateway",
+      name: "Tesla Powerwall 2 (Local)",
       manufacturer: "Tesla",
       model: "26.10.0 test",
     });

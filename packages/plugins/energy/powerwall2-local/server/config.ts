@@ -66,11 +66,9 @@ export const POWERWALL_GATEWAY_SECRET_KEYS:
   ] as const satisfies readonly PowerwallGatewayConfigKey[];
 
 export function parseMaxStalenessSeconds(raw: string | null): number {
-  const value = Number(raw ?? DEFAULT_POWERWALL_MAX_STALENESS_SECONDS);
-  if (!Number.isFinite(value) || value < 10 || value > 300) {
-    throw new Error("Powerwall telemetry freshness must be 10-300 seconds");
-  }
-  return Math.round(value);
+  return Number(freshnessSchema.parse(
+    raw ?? String(DEFAULT_POWERWALL_MAX_STALENESS_SECONDS),
+  ));
 }
 
 export function parsePollIntervalSeconds(raw: string | null): number {

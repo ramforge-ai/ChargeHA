@@ -1,3 +1,7 @@
+import {
+  DEFAULT_POWERWALL_MAX_STALENESS_SECONDS,
+  DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS,
+} from "../server/config.ts";
 import { createElement } from "react";
 import type { PluginConfigField } from "../../../hostUi.ts";
 import { PowerwallGatewayPasswordHelp } from "./PowerwallGatewayPasswordHelp.tsx";
@@ -7,7 +11,7 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
     key: "host",
     label: "Gateway IP address",
     help:
-      "LAN IP of the Tesla Energy Gateway. Give it a DHCP reservation so this address stays fixed.",
+      "LAN IP of the Tesla Powerwall 2 (Local). Give it a DHCP reservation so this address stays fixed.",
     placeholder: "192.0.2.10",
     width: 160,
     required: true,
@@ -34,7 +38,7 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
     key: "pollIntervalSeconds",
     label: "Polling interval (seconds)",
     help:
-      "Wait between completed polls. Default 30 seconds; allowed range 10-60. Failed requests automatically back off.",
+      "Wait between completed polls. Default 30 seconds; allowed range 10-60. Rate-limit/service responses trigger a local cooldown.",
     width: 90,
     advanced: true,
     required: true,
@@ -51,7 +55,6 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
 ];
 
 export interface PowerwallGatewayValues {
-  [key: string]: string;
   host: string;
   email: string;
   password: string;
@@ -60,11 +63,13 @@ export interface PowerwallGatewayValues {
 }
 
 export const valuesFrom = (
-  values: Record<string, string>,
+  values: Partial<PowerwallGatewayValues>,
 ): PowerwallGatewayValues => ({
   host: values.host ?? "",
   email: values.email ?? "",
   password: values.password ?? "",
-  maxStalenessSeconds: values.maxStalenessSeconds || "60",
-  pollIntervalSeconds: values.pollIntervalSeconds || "30",
+  maxStalenessSeconds: values.maxStalenessSeconds ||
+    String(DEFAULT_POWERWALL_MAX_STALENESS_SECONDS),
+  pollIntervalSeconds: values.pollIntervalSeconds ||
+    String(DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS),
 });

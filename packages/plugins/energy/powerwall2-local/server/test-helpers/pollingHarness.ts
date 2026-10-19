@@ -21,7 +21,7 @@ export async function pollingHarness() {
   const log = new Logger("PowerwallIntegration", "error");
   const adapter = new PowerwallGatewayAdapter(api, 60, log, () => NOW);
   const manager = throwingMock<EnergyAdapterManager>("EnergyAdapterManager", {
-    activePluginId: "powerwall_gateway",
+    activePluginId: "powerwall2_local",
     ready: () => Promise.resolve(),
     isRelevantConfigKey: () => false,
     pollIntervalSeconds: () => 10,

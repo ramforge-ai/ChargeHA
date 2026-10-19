@@ -15,7 +15,7 @@ const success = {
   device: {
     id: "example-gateway",
     manufacturer: "Tesla",
-    name: "Tesla Energy Gateway",
+    name: "Tesla Powerwall 2 (Local)",
     model: "26.34.0",
   },
   realtime: {
@@ -30,7 +30,7 @@ const success = {
 };
 
 export const powerwallGallery = {
-  id: "powerwall-gateway",
+  id: "powerwall2-local",
   title: "Powerwall Gateway",
   description:
     "Local Gateway setup and connection feedback. Static examples never contact a device.",

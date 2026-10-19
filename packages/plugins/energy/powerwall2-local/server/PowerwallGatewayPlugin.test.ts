@@ -13,7 +13,9 @@ import { createPowerwallGatewayRouter } from "./router.ts";
 describe("Powerwall plugin and config router", () => {
   async function setup() {
     const base = await pluginHarness();
-    const caller = createCallerFactory(createPowerwallGatewayRouter(base.deps))(
+    const caller = createCallerFactory(
+      createPowerwallGatewayRouter(base.deps, base.plugin),
+    )(
       throwingMock<TrpcContext>("TrpcContext"),
     );
     return { ...base, caller };
@@ -36,7 +38,7 @@ describe("Powerwall plugin and config router", () => {
   it("round-trips the config with an encrypted, namespaced password", async () => {
     await ctx.caller.setConfig(config);
     expect(await ctx.caller.getConfig()).toEqual(config);
-    const stored = await ctx.db.getPluginConfig("powerwall_gateway.password");
+    const stored = await ctx.db.getPluginConfig("powerwall2_local.password");
     expect(stored).not.toBe(config.password);
     expect(stored).not.toBeNull();
     expect(await ctx.deps.getSecret("password")).toBe(config.password);

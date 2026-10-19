@@ -10,6 +10,7 @@ import {
 } from "./test-helpers/powerwallApi.ts";
 
 class DeferredApi extends FakePowerwallApi {
+  readonly secondRequest = Promise.withResolvers<void>();
   readonly requests: {
     path: string;
     signal?: AbortSignal;
@@ -32,16 +33,12 @@ class DeferredApi extends FakePowerwallApi {
           reject(error);
         },
       });
+      if (this.requests.length === 2) this.secondRequest.resolve();
     });
   }
 }
 
 describe("Powerwall poll containment", () => {
-  const flush = () =>
-    Array.from({ length: 10 }).reduce<Promise<void>>(
-      (previous) => previous.then(() => {}),
-      Promise.resolve(),
-    );
   let time: FakeTime;
   let api: DeferredApi;
   let adapter: PowerwallGatewayAdapter;
@@ -59,22 +56,19 @@ describe("Powerwall poll containment", () => {
     time.restore();
   });
 
-  it("shares an in-flight cycle and reads endpoints sequentially", async () => {
+  it("reads endpoints sequentially without a shared cycle", async () => {
     const first = adapter.getRealtimeData();
-    const second = adapter.getRealtimeData();
-    expect(second).toBe(first);
     expect(api.requests.map((request) => request.path)).toEqual([
       "/api/meters/aggregates",
     ]);
     api.requests[0].resolve(aggregates());
-    await flush();
+    await api.secondRequest.promise;
     expect(api.requests.map((request) => request.path)).toEqual([
       "/api/meters/aggregates",
       "/api/system_status/soe",
     ]);
     api.requests[1].resolve({ percentage: 50 });
     expect((await first).batterySoc).toBeCloseTo(47.36842105263158, 10);
-    await second;
   });
   it("does not launch a sibling after a failed aggregate read", async () => {
     const result = adapter.getRealtimeData();
@@ -83,24 +77,14 @@ describe("Powerwall poll containment", () => {
     await rejected;
     expect(api.requests).toHaveLength(1);
   });
-  it("enforces one deadline across both reads, not a fresh timeout for each", async () => {
-    const result = adapter.getRealtimeData();
-    const rejected = expect(result).rejects.toThrow("20000ms deadline");
-    time.tick(15_000);
-    api.requests[0].resolve(aggregates());
-    await flush();
-    expect(api.requests).toHaveLength(2);
-    time.tick(5000);
+  it("allows a slow cycle beyond 20 seconds with caller cancellation", async () => {
+    const controller = new AbortController();
+    const result = adapter.getRealtimeData(controller.signal);
+    time.tick(25_000);
+    expect(controller.signal.aborted).toBe(false);
+    const rejected = expect(result).rejects.toThrow("cancelled");
+    controller.abort(new Error("cancelled"));
     await rejected;
-    expect(api.requests[1].signal?.aborted).toBe(true);
-  });
-  it("aborts the actual read on disconnect and drains it", async () => {
-    const result = adapter.getRealtimeData();
-    const rejected = expect(result).rejects.toThrow("disconnected");
-    await adapter.disconnect();
-    await rejected;
-    expect(api.requests[0].signal?.aborted).toBe(true);
-    expect(api.clearCalls).toBe(1);
   });
   it("propagates the poller's cancellation without starting another read", async () => {
     const controller = new AbortController();

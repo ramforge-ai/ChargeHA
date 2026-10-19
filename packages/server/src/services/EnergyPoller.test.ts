@@ -5,7 +5,6 @@ import type { CumulativeEnergyData, EnergyData } from "@chargeha/shared";
 import { AppDatabase } from "../db/AppDatabase.ts";
 import { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import { EnergyPoller } from "./EnergyPoller.ts";
-import type { EnergyAdapterManager } from "./EnergyAdapterManager.ts";
 import { Logger } from "../lib/Logger.ts";
 import { testable } from "../test-helpers/Testable.ts";
 import { MockEnergyPollerAdapter } from "../test-helpers/MockEnergyPollerAdapter.ts";
@@ -41,10 +40,23 @@ describe("EnergyPoller", () => {
     adapter = new MockEnergyPollerAdapter(BASE_REALTIME);
     emitter = new MockEventEmitter();
 
+    const typedEmitter = new TypedEventEmitter();
+    typedEmitter.subscribe(
+      "energy_update",
+      (data) => emitter.emit("energy_update", data),
+    );
+    typedEmitter.subscribe(
+      "energy_poll_success",
+      (data) => emitter.emit("energy_poll_success", data),
+    );
+    typedEmitter.subscribe(
+      "energy_poll_failure",
+      (data) => emitter.emit("energy_poll_failure", data),
+    );
     poller = new EnergyPoller(
-      adapter as unknown as EnergyAdapterManager,
+      adapter.asManager(),
       noLoadChargingPoints,
-      emitter as unknown as TypedEventEmitter,
+      typedEmitter,
       db,
       testLogger,
     );
@@ -199,7 +211,7 @@ describe("EnergyPoller", () => {
       await poller.stop();
     });
 
-    it("restart clears and re-establishes the timer", async () => {
+    it("restart after explicit stop leaves the poller stopped", async () => {
       await poller.restart();
       await poller.stop();
     });
@@ -215,7 +227,7 @@ describe("EnergyPoller", () => {
       subDb = new AppDatabase(":memory:");
       await subDb.init();
       subPoller = new EnergyPoller(
-        adapter as unknown as EnergyAdapterManager,
+        adapter.asManager(),
         noLoadChargingPoints,
         realEmitter,
         subDb,

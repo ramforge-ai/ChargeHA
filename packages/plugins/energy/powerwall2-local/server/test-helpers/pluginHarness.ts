@@ -11,7 +11,7 @@ export async function pluginHarness() {
   await db.init();
   const deps = PluginDependencies.create({
     db,
-    pluginId: "powerwall_gateway",
+    pluginId: "powerwall2_local",
     encryptionConfigured: () => true,
     vehicleManager: throwingMock<VehicleManager>("VehicleManager"),
     chargingPoints: throwingMock<ChargingPointManager>("ChargingPointManager"),

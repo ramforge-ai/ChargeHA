@@ -2,7 +2,8 @@ import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { Logger } from "@chargeha/server/lib/Logger";
 import { PowerwallGatewayAdapter } from "./PowerwallGatewayAdapter.ts";
-import { testPowerwallConnection } from "./testPowerwallConnection.ts";
+import { stub } from "@std/testing/mock";
+import { pluginHarness } from "./test-helpers/pluginHarness.ts";
 import {
   aggregates,
   FakePowerwallApi,
@@ -28,18 +29,34 @@ describe("Powerwall connection test lifecycle", () => {
   it("returns device and telemetry and clears the temporary session", async () => {
     const api = new FakePowerwallApi(aggregates());
     api.soeResponse = { percentage: 24 };
-    const result = await testPowerwallConnection(input, factory(api));
+    const ctx = await pluginHarness();
+    using mocked = stub(
+      ctx.plugin,
+      "createAdapter",
+      () => Promise.resolve(factory(api)()),
+    );
+    const result = await ctx.plugin.testConnection(input);
+    ctx.db.close();
     expect(result.success).toBe(true);
     if (!result.success) throw new Error("Expected successful connection");
     expect(result.realtime.batterySoc).toBe(20);
     expect(api.clearCalls).toBe(1);
+    expect(mocked.calls).toHaveLength(1);
   });
   it("cleans up after a failed connection without returning fabricated telemetry", async () => {
     const api = new FakePowerwallApi(new Error("Connection refused"));
-    expect(await testPowerwallConnection(input, factory(api))).toEqual({
+    const ctx = await pluginHarness();
+    using mocked = stub(
+      ctx.plugin,
+      "createAdapter",
+      () => Promise.resolve(factory(api)()),
+    );
+    expect(await ctx.plugin.testConnection(input)).toEqual({
       success: false,
       error: "Connection refused",
     });
     expect(api.clearCalls).toBe(1);
+    expect(mocked.calls).toHaveLength(1);
+    ctx.db.close();
   });
 });

@@ -3,7 +3,10 @@ import { Spinner } from "../../../hostUi.ts";
 import type { PluginStepDef, WizardNext } from "../../../hostUi.ts";
 import { trpc } from "./trpc.ts";
 import { PowerwallGatewayForm } from "./PowerwallGatewayForm.tsx";
-import type { PowerwallGatewayValues } from "./PowerwallGatewayFields.ts";
+import {
+  type PowerwallGatewayValues,
+  valuesFrom,
+} from "./PowerwallGatewayFields.ts";
 
 const nextState = (
   validated: PowerwallGatewayValues | null,
@@ -23,29 +26,23 @@ const nextState = (
 };
 
 export const powerwallGatewaySetupStep: PluginStepDef = {
-  id: "powerwall-gateway-setup",
-  label: "Tesla Powerwall Gateway",
+  id: "powerwall2-local-setup",
+  label: "Tesla Powerwall 2 (Local)",
   useStep: () => {
-    const { data } = trpc.plugin.energy.powerwall_gateway.getConfig.useQuery();
-    const saveMutation = trpc.plugin.energy.powerwall_gateway.setConfig
+    const { data } = trpc.plugin.energy.powerwall2_local.getConfig.useQuery();
+    const saveMutation = trpc.plugin.energy.powerwall2_local.setConfig
       .useMutation();
     const [validated, setValidated] = useState<PowerwallGatewayValues | null>(
       null,
     );
     const save = useCallback(
       async (values: PowerwallGatewayValues) => {
-        await saveMutation.mutateAsync(values);
+        await saveMutation.mutateAsync({ ...values });
       },
       [saveMutation],
     );
     if (!data) return { next: nextState(null, save), view: <Spinner /> };
-    const initial: PowerwallGatewayValues = {
-      host: data?.host ?? "",
-      email: data?.email ?? "",
-      password: data?.password ?? "",
-      maxStalenessSeconds: data?.maxStalenessSeconds ?? "60",
-      pollIntervalSeconds: data?.pollIntervalSeconds ?? "30",
-    };
+    const initial = valuesFrom(data);
     return {
       next: nextState(validated, save),
       view: (

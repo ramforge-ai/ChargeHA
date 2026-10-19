@@ -39,13 +39,13 @@ vi.mock("./trpc.ts", () => ({
     useUtils: () => ({
       plugin: {
         energy: {
-          powerwall_gateway: { getConfig: { invalidate: mocks.invalidate } },
+          powerwall2_local: { getConfig: { invalidate: mocks.invalidate } },
         },
       },
     }),
     plugin: {
       energy: {
-        powerwall_gateway: {
+        powerwall2_local: {
           getConfig: { useQuery: () => ({ data: mocks.config }) },
           setConfig: {
             useMutation: () => ({

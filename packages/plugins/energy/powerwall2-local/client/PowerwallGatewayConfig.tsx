@@ -8,7 +8,7 @@ import { PowerwallGatewayTestResult } from "./PowerwallGatewayView.tsx";
 
 function ConnectionTest({ values }: { values: Record<string, string> }) {
   const input = valuesFrom(values);
-  const test = trpc.plugin.energy.powerwall_gateway.testConnection
+  const test = trpc.plugin.energy.powerwall2_local.testConnection
     .useMutation();
   const tested: Record<string, string> | undefined = test.variables;
   const current = Object.entries(input).every(([key, value]) =>
@@ -26,12 +26,12 @@ function ConnectionTest({ values }: { values: Record<string, string> }) {
 }
 
 export function PowerwallGatewayConfig(): JSX.Element {
-  const { data } = trpc.plugin.energy.powerwall_gateway.getConfig.useQuery();
+  const { data } = trpc.plugin.energy.powerwall2_local.getConfig.useQuery();
   const utils = trpc.useUtils();
-  const { mutate } = trpc.plugin.energy.powerwall_gateway.setConfig.useMutation(
+  const { mutate } = trpc.plugin.energy.powerwall2_local.setConfig.useMutation(
     {
       onSuccess: () =>
-        utils.plugin.energy.powerwall_gateway.getConfig.invalidate(),
+        utils.plugin.energy.powerwall2_local.getConfig.invalidate(),
     },
   );
   return (

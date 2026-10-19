@@ -15,7 +15,7 @@ import {
 
 type Result = inferRouterOutputs<
   PowerwallGatewayAppRouter
->["plugin"]["energy"]["powerwall_gateway"]["testConnection"];
+>["plugin"]["energy"]["powerwall2_local"]["testConnection"];
 
 export interface PowerwallTestProps {
   result?: Result;
@@ -67,9 +67,9 @@ export function PowerwallGatewayView(
   return (
     <div className={stepStyles.stepContainer}>
       <Text as="p" size="3" color="gray">
-        Connect ChargeHA to the local Tesla Energy Gateway. This reads solar,
-        grid, house and Powerwall flow; it does not change any Powerwall
-        settings.
+        Powerwall 2 with Backup Gateway 2 (tested). Gateway 1 untested.
+        Powerwall 3 not supported. This reads solar, grid, house and Powerwall
+        flow; it does not change any Powerwall settings.
       </Text>
       <Text as="p" size="1" color="gray">
         Use the Gateway customer password, not your Tesla account password.
@@ -77,7 +77,7 @@ export function PowerwallGatewayView(
       </Text>
       <PluginFieldInputs
         fields={POWERWALL_GATEWAY_FIELDS}
-        values={values}
+        values={{ ...values }}
         onChange={onChange}
         autoFocus
       />

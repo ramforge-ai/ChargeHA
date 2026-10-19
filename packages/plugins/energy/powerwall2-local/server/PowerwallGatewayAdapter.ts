@@ -4,13 +4,14 @@ import type {
   EnergySourceAdapter,
 } from "@chargeha/shared";
 import type { Logger } from "@chargeha/server/lib/Logger";
-import {
-  type PowerwallGatewayApi,
-  PowerwallGatewayConnectionError,
-} from "./PowerwallGatewayClient.ts";
+import type { PowerwallGatewayApi } from "./PowerwallGatewayClient.ts";
+import type { PluginDbLogger } from "@chargeha/server/lib/PluginDbLogger";
+import { DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS } from "./config.ts";
 
 const AGGREGATES_PATH = "/api/meters/aggregates";
 const SOE_PATH = "/api/system_status/soe";
+const SOC_BUFFER_PERCENT = 5;
+const SOC_USABLE_FRACTION = (100 - SOC_BUFFER_PERCENT) / 100;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -49,8 +50,12 @@ const usableSoc = (value: number): number => {
     throw new Error("Powerwall telemetry has invalid battery state of charge");
   }
   // The local SOE includes Tesla's 5% buffer, unlike the app's usable SOC.
+  // Source: https://github.com/jasonacox/pypowerwall/blob/main/API.md#power-and-energy
   // This buffer is separate from the owner's configurable backup reserve.
-  return Math.max(0, Math.min(100, (value - 5) / 0.95));
+  return Math.max(
+    0,
+    Math.min(100, (value - SOC_BUFFER_PERCENT) / SOC_USABLE_FRACTION),
+  );
 };
 
 interface MeterSet {
@@ -108,15 +113,14 @@ const gridVoltageFrom = (site: JsonRecord): number | null =>
   );
 
 export class PowerwallGatewayAdapter implements EnergySourceAdapter {
-  private inFlight: Promise<EnergyData> | null = null;
-  private controller: AbortController | null = null;
+  private lastFailureAt: number | null = null;
   constructor(
     private readonly client: PowerwallGatewayApi,
     private readonly maxStalenessSeconds: number,
     private readonly logger: Logger,
     private readonly now: () => number = Date.now,
-    private readonly intervalSeconds = 30,
-    private readonly cycleTimeoutMs = 20_000,
+    private readonly intervalSeconds = DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS,
+    private readonly dbLog?: PluginDbLogger,
   ) {}
 
   pollIntervalSeconds(): number {
@@ -124,75 +128,55 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
   }
 
   async connect(): Promise<void> {
-    const device = await this.getDeviceInfo();
-    await this.getRealtimeData();
-    this.logger.info(
-      `Connected to ${device.name} at ${this.client.host} (${device.model})`,
+    try {
+      const device = await this.getDeviceInfo();
+      await this.readTelemetry();
+      this.logger.info(
+        `Connected to ${device.name} at ${this.client.host} (${device.model})`,
+      );
+    } catch (error) {
+      await this.recordFailure("connection");
+      throw error;
+    }
+  }
+
+  disconnect(): Promise<void> {
+    // The poller cancels and drains reads before disconnecting the adapter.
+    this.client.clearSession();
+    return Promise.resolve();
+  }
+
+  async getRealtimeData(signal?: AbortSignal): Promise<EnergyData> {
+    try {
+      const data = await this.readTelemetry(signal);
+      this.lastFailureAt = null;
+      return data;
+    } catch (error) {
+      // Scheduled polls already get the core poller's throttled DB breadcrumb.
+      // Direct reads (connection tests) have no poller, so log them here.
+      if (!signal) await this.recordFailure("poll");
+      throw error;
+    }
+  }
+
+  private async recordFailure(operation: "connection" | "poll"): Promise<void> {
+    const now = this.now();
+    if (this.lastFailureAt !== null && now - this.lastFailureAt < 300_000) {
+      return;
+    }
+    this.lastFailureAt = now;
+    // Never persist response bodies, credentials or transport error text.
+    await this.dbLog?.error(
+      `Powerwall ${operation} failed; check connection and credentials`,
     );
   }
 
-  async disconnect(): Promise<void> {
-    this.controller?.abort(new Error("Powerwall adapter disconnected"));
-    try {
-      await this.inFlight;
-    } catch (error) {
-      this.logger.debug(
-        `Powerwall pending read ended during disconnect: ${
-          error instanceof Error ? error.name : "error"
-        }`,
-      );
-    }
-    this.client.clearSession();
-  }
-
-  getRealtimeData(signal?: AbortSignal): Promise<EnergyData> {
-    if (this.inFlight) return this.inFlight;
-    const pending = this.readCycle(signal).finally(() => {
-      this.inFlight = null;
-      this.controller = null;
-    });
-    this.inFlight = pending;
-    return pending;
-  }
-
-  private async readCycle(externalSignal?: AbortSignal): Promise<EnergyData> {
-    const started = this.now();
-    const controller = new AbortController();
-    this.controller = controller;
-    const signal = externalSignal
-      ? AbortSignal.any([externalSignal, controller.signal])
-      : controller.signal;
-    const deadline = setTimeout(() =>
-      controller.abort(
-        new PowerwallGatewayConnectionError(
-          `Powerwall poll exceeded ${this.cycleTimeoutMs}ms deadline`,
-        ),
-      ), this.cycleTimeoutMs);
-    try {
-      const data = await this.readTelemetry(signal);
-      this.logger.debug(
-        `Powerwall poll succeeded in ${this.now() - started}ms; in-flight=1`,
-      );
-      return data;
-    } catch (error) {
-      const failure = signal.aborted ? signal.reason : error;
-      this.logger.debug(
-        `Powerwall poll failed in ${this.now() - started}ms; category=${
-          failure instanceof Error ? failure.name : "unknown"
-        }`,
-      );
-      throw failure;
-    } finally {
-      clearTimeout(deadline);
-    }
-  }
-
-  private async readTelemetry(signal: AbortSignal): Promise<EnergyData> {
-    signal.throwIfAborted();
+  private async readTelemetry(signal?: AbortSignal): Promise<EnergyData> {
+    signal?.throwIfAborted();
     const aggregates = await this.client.getJson(AGGREGATES_PATH, signal);
-    signal.throwIfAborted();
+    signal?.throwIfAborted();
     const soe = await this.client.getJson(SOE_PATH, signal);
-    signal.throwIfAborted();
+    signal?.throwIfAborted();
     const meters = metersFrom(aggregates);
     const nowMs = this.now();
     assertFresh(meters, nowMs, this.maxStalenessSeconds);
@@ -216,7 +200,7 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
       : "Unknown firmware";
     return {
       id: din,
-      name: "Tesla Energy Gateway",
+      name: "Tesla Powerwall 2 (Local)",
       manufacturer: "Tesla",
       model: version,
     };
