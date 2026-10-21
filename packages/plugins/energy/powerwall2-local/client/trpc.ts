@@ -1,4 +1,4 @@
 import { widenTrpc } from "../../../hostUi.ts";
-import type { PowerwallGatewayAppRouter } from "../routerType.ts";
+import type { Powerwall2LocalAppRouter } from "../routerType.ts";
 
-export const trpc = widenTrpc<PowerwallGatewayAppRouter>();
+export const trpc = widenTrpc<Powerwall2LocalAppRouter>();

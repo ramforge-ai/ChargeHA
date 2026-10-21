@@ -1,1 +1,1 @@
-export { PowerwallGatewayPlugin } from "./PowerwallGatewayPlugin.ts";
+export { Powerwall2LocalPlugin } from "./Powerwall2LocalPlugin.ts";

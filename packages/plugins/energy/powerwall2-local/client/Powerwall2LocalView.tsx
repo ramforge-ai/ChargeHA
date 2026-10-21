@@ -1,7 +1,7 @@
 import { Badge, Text } from "@radix-ui/themes";
 import { CheckCircle } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
-import type { PowerwallGatewayAppRouter } from "../routerType.ts";
+import type { Powerwall2LocalAppRouter } from "../routerType.ts";
 import {
   FormError,
   PluginFieldInputs,
@@ -9,12 +9,12 @@ import {
   stepStyles,
 } from "../../../hostUi.ts";
 import {
-  POWERWALL_GATEWAY_FIELDS,
-  type PowerwallGatewayValues,
-} from "./PowerwallGatewayFields.ts";
+  POWERWALL2_LOCAL_FIELDS,
+  type Powerwall2LocalValues,
+} from "./Powerwall2LocalFields.ts";
 
 type Result = inferRouterOutputs<
-  PowerwallGatewayAppRouter
+  Powerwall2LocalAppRouter
 >["plugin"]["energy"]["powerwall2_local"]["testConnection"];
 
 export interface PowerwallTestProps {
@@ -25,7 +25,7 @@ export interface PowerwallTestProps {
   onTest: () => void;
 }
 
-export function PowerwallGatewayTestResult(props: PowerwallTestProps) {
+export function Powerwall2LocalTestResult(props: PowerwallTestProps) {
   const success = props.result?.success ? props.result : null;
   const error = props.error ??
     (props.result?.success === false ? props.result.error : undefined);
@@ -58,9 +58,9 @@ export function PowerwallGatewayTestResult(props: PowerwallTestProps) {
 }
 
 /** Pure view shared by setup and the static component gallery. */
-export function PowerwallGatewayView(
+export function Powerwall2LocalView(
   { values, onChange, ...test }: PowerwallTestProps & {
-    values: PowerwallGatewayValues;
+    values: Powerwall2LocalValues;
     onChange: (key: string, value: string) => void;
   },
 ) {
@@ -76,12 +76,12 @@ export function PowerwallGatewayView(
         Credentials are sent to the configured Gateway over HTTPS.
       </Text>
       <PluginFieldInputs
-        fields={POWERWALL_GATEWAY_FIELDS}
+        fields={POWERWALL2_LOCAL_FIELDS}
         values={{ ...values }}
         onChange={onChange}
         autoFocus
       />
-      <PowerwallGatewayTestResult {...test} />
+      <Powerwall2LocalTestResult {...test} />
     </div>
   );
 }

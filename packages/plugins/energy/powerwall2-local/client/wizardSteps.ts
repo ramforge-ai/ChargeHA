@@ -1,12 +1,12 @@
 import type { PluginStepDef } from "../../../hostUi.ts";
 import type { EnergyPluginOption } from "../../../pluginOptions.ts";
-import { powerwallGatewaySetupStep } from "./PowerwallGatewaySetupStep.tsx";
+import { powerwall2LocalSetupStep } from "./Powerwall2LocalSetupStep.tsx";
 
-export const powerwallGatewayWizardSteps: PluginStepDef[] = [
-  powerwallGatewaySetupStep,
+export const powerwall2LocalWizardSteps: PluginStepDef[] = [
+  powerwall2LocalSetupStep,
 ];
 
-export const powerwallGatewayOption: EnergyPluginOption = {
+export const powerwall2LocalOption: EnergyPluginOption = {
   id: "powerwall2_local",
   label: "Tesla Powerwall 2 via Gateway (Local)",
   description:

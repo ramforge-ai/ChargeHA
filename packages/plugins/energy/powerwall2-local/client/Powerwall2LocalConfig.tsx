@@ -1,10 +1,10 @@
 import { PluginConfigForm } from "../../../hostUi.ts";
 import { trpc } from "./trpc.ts";
 import {
-  POWERWALL_GATEWAY_FIELDS,
+  POWERWALL2_LOCAL_FIELDS,
   valuesFrom,
-} from "./PowerwallGatewayFields.ts";
-import { PowerwallGatewayTestResult } from "./PowerwallGatewayView.tsx";
+} from "./Powerwall2LocalFields.ts";
+import { Powerwall2LocalTestResult } from "./Powerwall2LocalView.tsx";
 
 function ConnectionTest({ values }: { values: Record<string, string> }) {
   const input = valuesFrom(values);
@@ -15,7 +15,7 @@ function ConnectionTest({ values }: { values: Record<string, string> }) {
     tested?.[key] === value
   );
   return (
-    <PowerwallGatewayTestResult
+    <Powerwall2LocalTestResult
       pending={test.isPending}
       disabled={!input.host || !input.password}
       onTest={() => test.mutate(input)}
@@ -25,7 +25,7 @@ function ConnectionTest({ values }: { values: Record<string, string> }) {
   );
 }
 
-export function PowerwallGatewayConfig(): JSX.Element {
+export function Powerwall2LocalConfig(): JSX.Element {
   const { data } = trpc.plugin.energy.powerwall2_local.getConfig.useQuery();
   const utils = trpc.useUtils();
   const { mutate } = trpc.plugin.energy.powerwall2_local.setConfig.useMutation(
@@ -37,7 +37,7 @@ export function PowerwallGatewayConfig(): JSX.Element {
   return (
     <PluginConfigForm
       data={data}
-      fields={POWERWALL_GATEWAY_FIELDS}
+      fields={POWERWALL2_LOCAL_FIELDS}
       onSave={mutate}
       renderFooter={(values) => <ConnectionTest values={values} />}
     />

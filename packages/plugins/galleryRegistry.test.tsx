@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Theme } from "@radix-ui/themes";
-import { pluginGalleries } from "../../../galleryRegistry.ts";
+import { pluginGalleries } from "./galleryRegistry.ts";
 
 describe("plugin-owned static gallery", () => {
   it("mounts every registered specimen without network providers or fetch", () => {
@@ -27,6 +27,9 @@ describe("plugin-owned static gallery", () => {
           )}
         </Theme>,
       );
+      expect(screen.getByText(/Connected —/)).toBeInTheDocument();
+      expect(screen.getByText(/telemetry is stale/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Testing…" })).toBeDisabled();
       expect(screen.getByText("Station selection")).toBeInTheDocument();
       expect(screen.getByText("Charger settings")).toBeInTheDocument();
       expect(fetchSpy).not.toHaveBeenCalled();

@@ -24,7 +24,7 @@ export const freshnessSchema = z.string().refine(
   "Powerwall telemetry freshness must be 10-300 seconds",
 );
 
-export const powerwallGatewayConfigDef = defineSection({
+export const powerwall2LocalConfigDef = defineSection({
   host: {
     key: "host",
     schema: gatewayHostSchema,
@@ -52,18 +52,18 @@ export const powerwallGatewayConfigDef = defineSection({
   },
 });
 
-export type PowerwallGatewayConfig = SectionType<
-  typeof powerwallGatewayConfigDef
+export type Powerwall2LocalConfig = SectionType<
+  typeof powerwall2LocalConfigDef
 >;
 
-export type PowerwallGatewayConfigKey = SectionKeys<
-  typeof powerwallGatewayConfigDef
+export type Powerwall2LocalConfigKey = SectionKeys<
+  typeof powerwall2LocalConfigDef
 >;
 
-export const POWERWALL_GATEWAY_SECRET_KEYS:
-  readonly PowerwallGatewayConfigKey[] = [
+export const POWERWALL2_LOCAL_SECRET_KEYS: readonly Powerwall2LocalConfigKey[] =
+  [
     "password",
-  ] as const satisfies readonly PowerwallGatewayConfigKey[];
+  ] as const satisfies readonly Powerwall2LocalConfigKey[];
 
 export function parseMaxStalenessSeconds(raw: string | null): number {
   return Number(freshnessSchema.parse(

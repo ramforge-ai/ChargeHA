@@ -7,10 +7,10 @@ import {
   meter,
   NOW,
 } from "./test-helpers/powerwallApi.ts";
-import { PowerwallGatewayAdapter } from "./PowerwallGatewayAdapter.ts";
+import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 
-describe("PowerwallGatewayAdapter", () => {
-  const logger = new Logger("PowerwallGatewayTest", "error");
+describe("Powerwall2LocalAdapter", () => {
+  const logger = new Logger("Powerwall2LocalTest", "error");
   let api: FakePowerwallApi;
 
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe("PowerwallGatewayAdapter", () => {
   });
 
   const makeAdapter = (maxStalenessSeconds = 60) =>
-    new PowerwallGatewayAdapter(
+    new Powerwall2LocalAdapter(
       api,
       maxStalenessSeconds,
       logger,

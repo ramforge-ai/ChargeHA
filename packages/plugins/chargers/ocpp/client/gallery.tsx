@@ -1,6 +1,7 @@
+import type { PluginGallery } from "../../../pluginOptions.ts";
 import { PluginFieldInputs } from "../../../hostUi.ts";
 import { OCPP_DEFAULTS, OCPP_FIELDS } from "./fields.ts";
-export const ocppGallery = {
+export const ocppGallery: PluginGallery = {
   id: "ocpp",
   title: "OCPP charger",
   description:

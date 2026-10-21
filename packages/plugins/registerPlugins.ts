@@ -13,7 +13,7 @@ import { FroniusCloudPlugin } from "./energy/fronius-cloud/server/index.ts";
 import { SigenergyLocalPlugin } from "./energy/sigenergy-local/server/index.ts";
 import { EnphaseLocalPlugin } from "./energy/enphase-local/server/index.ts";
 import { GoodweSemsPlugin } from "./energy/goodwe-sems/server/index.ts";
-import { PowerwallGatewayPlugin } from "./energy/powerwall2-local/server/index.ts";
+import { Powerwall2LocalPlugin } from "./energy/powerwall2-local/server/index.ts";
 import { SimulatedEnergyPlugin } from "./energy/simulated/server/index.ts";
 import { TapoChargerPlugin } from "./chargers/tapo/server/index.ts";
 import { OcppChargerPlugin } from "./chargers/ocpp/server/index.ts";
@@ -52,7 +52,7 @@ export function registerPlugins(
   energyRegistry.register(new EnphaseLocalPlugin(make("enphase_local")));
   energyRegistry.register(new GoodweSemsPlugin(make("goodwe_sems")));
   energyRegistry.register(
-    new PowerwallGatewayPlugin(make("powerwall2_local")),
+    new Powerwall2LocalPlugin(make("powerwall2_local")),
   );
   energyRegistry.register(
     new SimulatedEnergyPlugin(make("simulated_energy")),

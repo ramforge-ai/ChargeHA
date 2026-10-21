@@ -1,7 +1,7 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { Logger } from "@chargeha/server/lib/Logger";
-import { PowerwallGatewayAdapter } from "./PowerwallGatewayAdapter.ts";
+import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 import {
   aggregates,
   FakePowerwallApi,
@@ -9,9 +9,9 @@ import {
   NOW,
 } from "./test-helpers/powerwallApi.ts";
 
-describe("PowerwallGatewayAdapter validation", () => {
+describe("Powerwall2LocalAdapter validation", () => {
   const read = (overrides: Record<string, unknown>) =>
-    new PowerwallGatewayAdapter(
+    new Powerwall2LocalAdapter(
       new FakePowerwallApi(aggregates(overrides)),
       60,
       new Logger("test", "error"),

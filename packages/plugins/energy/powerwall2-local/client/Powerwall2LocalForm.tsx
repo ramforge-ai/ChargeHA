@@ -1,15 +1,15 @@
 import { useRef, useState } from "react";
 import { trpc } from "./trpc.ts";
 import {
-  type PowerwallGatewayValues,
+  type Powerwall2LocalValues,
   valuesFrom,
-} from "./PowerwallGatewayFields.ts";
-import { PowerwallGatewayView } from "./PowerwallGatewayView.tsx";
+} from "./Powerwall2LocalFields.ts";
+import { Powerwall2LocalView } from "./Powerwall2LocalView.tsx";
 
-export function PowerwallGatewayForm(
+export function Powerwall2LocalForm(
   { initial, onTestSuccess }: {
-    initial: PowerwallGatewayValues;
-    onTestSuccess: (values: PowerwallGatewayValues | null) => void;
+    initial: Powerwall2LocalValues;
+    onTestSuccess: (values: Powerwall2LocalValues | null) => void;
   },
 ): JSX.Element {
   const [values, setValues] = useState(initial);
@@ -35,7 +35,7 @@ export function PowerwallGatewayForm(
     });
   };
   return (
-    <PowerwallGatewayView
+    <Powerwall2LocalView
       values={input}
       onChange={onChange}
       onTest={onTest}

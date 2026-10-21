@@ -4,9 +4,9 @@ import {
 } from "../server/config.ts";
 import { createElement } from "react";
 import type { PluginConfigField } from "../../../hostUi.ts";
-import { PowerwallGatewayPasswordHelp } from "./PowerwallGatewayPasswordHelp.tsx";
+import { Powerwall2LocalPasswordHelp } from "./Powerwall2LocalPasswordHelp.tsx";
 
-export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
+export const POWERWALL2_LOCAL_FIELDS: PluginConfigField[] = [
   {
     key: "host",
     label: "Gateway IP address",
@@ -29,7 +29,7 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
     label: "Gateway customer password",
     help:
       "Not your Tesla account password. Gateway 2 default: last five characters of the Password on the label behind its glass door (unless changed). Open the help below for details.",
-    after: () => createElement(PowerwallGatewayPasswordHelp),
+    after: () => createElement(Powerwall2LocalPasswordHelp),
     secret: true,
     width: 160,
     required: true,
@@ -54,7 +54,7 @@ export const POWERWALL_GATEWAY_FIELDS: PluginConfigField[] = [
   },
 ];
 
-export interface PowerwallGatewayValues {
+export interface Powerwall2LocalValues {
   host: string;
   email: string;
   password: string;
@@ -63,8 +63,8 @@ export interface PowerwallGatewayValues {
 }
 
 export const valuesFrom = (
-  values: Partial<PowerwallGatewayValues>,
-): PowerwallGatewayValues => ({
+  values: Partial<Powerwall2LocalValues>,
+): Powerwall2LocalValues => ({
   host: values.host ?? "",
   email: values.email ?? "",
   password: values.password ?? "",

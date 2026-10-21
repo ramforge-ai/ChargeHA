@@ -1,6 +1,6 @@
 import { Text } from "@radix-ui/themes";
 
-export function PowerwallGatewayPasswordHelp() {
+export function Powerwall2LocalPasswordHelp() {
   return (
     <Text as="div" size="2" color="gray">
       <details>

@@ -1,8 +1,10 @@
 import { PowerwallGatewayAuthError } from "./errors.ts";
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import type { PluginDbLogger } from "@chargeha/server/lib/PluginDbLogger";
+import { LogService } from "../../../../server/src/services/LogService.ts";
 import { Logger } from "@chargeha/server/lib/Logger";
-import { PowerwallGatewayAdapter } from "./PowerwallGatewayAdapter.ts";
+import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 import { stub } from "@std/testing/mock";
 import { pluginHarness } from "./test-helpers/pluginHarness.ts";
 import {
@@ -20,12 +22,48 @@ describe("Powerwall connection test lifecycle", () => {
     pollIntervalSeconds: "30",
   };
   const factory = (api: FakePowerwallApi) => () =>
-    new PowerwallGatewayAdapter(
+    new Powerwall2LocalAdapter(
       api,
       60,
       new Logger("test", "error"),
       () => NOW,
     );
+
+  [true, false].forEach((fails) => {
+    it(`keeps interactive connection results out of Logs (fails=${fails})`, async () => {
+      const ctx = await pluginHarness();
+      const api = new FakePowerwallApi(
+        fails ? new Error("offline") : aggregates(),
+      );
+      using mocked = stub(
+        ctx.plugin,
+        "createAdapter",
+        (_input, dbLog?: PluginDbLogger) =>
+          Promise.resolve(
+            new Powerwall2LocalAdapter(
+              api,
+              60,
+              ctx.deps.log,
+              () => NOW,
+              30,
+              dbLog ?? ctx.deps.dbLog,
+            ),
+          ),
+      );
+      try {
+        const logs = new LogService(ctx.db);
+        const before = await logs.getPluginLogs({
+          pluginId: "powerwall2_local",
+        });
+        expect((await ctx.plugin.testConnection(input)).success).toBe(!fails);
+        expect(await logs.getPluginLogs({ pluginId: "powerwall2_local" }))
+          .toEqual(before);
+        expect(mocked.calls).toHaveLength(1);
+      } finally {
+        ctx.db.close();
+      }
+    });
+  });
 
   it("returns device and telemetry and clears the temporary session", async () => {
     const api = new FakePowerwallApi(aggregates());
@@ -75,6 +113,11 @@ describe("Powerwall connection test lifecycle", () => {
           "Powerwall connection failed; check Gateway availability and credentials",
       });
       expect(mocked.calls).toHaveLength(1);
+      expect(
+        (await new LogService(ctx.db).getPluginLogs({
+          pluginId: "powerwall2_local",
+        })).total,
+      ).toBe(0);
     } finally {
       ctx.db.close();
     }

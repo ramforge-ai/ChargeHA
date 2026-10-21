@@ -117,7 +117,7 @@ const gridVoltageFrom = (site: JsonRecord): number | null =>
     site.instant_average_voltage ?? site.instantaneous_average_voltage,
   );
 
-export class PowerwallGatewayAdapter implements EnergySourceAdapter {
+export class Powerwall2LocalAdapter implements EnergySourceAdapter {
   private lastFailureAt: number | null = null;
   constructor(
     private readonly client: PowerwallGatewayApi,
@@ -140,7 +140,7 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
         `Connected to ${device.name} at ${this.client.host} (${device.model})`,
       );
     } catch (error) {
-      await this.recordFailure("connection");
+      await this.recordFailure();
       throw safePowerwallError(error);
     }
   }
@@ -160,14 +160,11 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
       if (signal?.aborted) {
         throw new PowerwallTelemetryError("Powerwall request cancelled");
       }
-      // Scheduled polls already get the core poller's throttled DB breadcrumb.
-      // Direct reads (connection tests) have no poller, so log them here.
-      if (!signal) await this.recordFailure("poll");
       throw safePowerwallError(error);
     }
   }
 
-  private async recordFailure(operation: "connection" | "poll"): Promise<void> {
+  private async recordFailure(): Promise<void> {
     const now = this.now();
     if (this.lastFailureAt !== null && now - this.lastFailureAt < 300_000) {
       return;
@@ -175,7 +172,7 @@ export class PowerwallGatewayAdapter implements EnergySourceAdapter {
     this.lastFailureAt = now;
     // Never persist response bodies, credentials or transport error text.
     await this.dbLog?.error(
-      `Powerwall ${operation} failed; check connection and credentials`,
+      "Powerwall connection failed; check connection and credentials",
     );
   }
 

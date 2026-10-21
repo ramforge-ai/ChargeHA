@@ -1,7 +1,8 @@
+import type { PluginGallery } from "../../../pluginOptions.ts";
 import {
-  PowerwallGatewayTestResult,
-  PowerwallGatewayView,
-} from "./PowerwallGatewayView.tsx";
+  Powerwall2LocalTestResult,
+  Powerwall2LocalView,
+} from "./Powerwall2LocalView.tsx";
 const noop = () => {};
 const values = {
   host: "192.0.2.10",
@@ -29,7 +30,7 @@ const success = {
   },
 };
 
-export const powerwallGallery = {
+export const powerwallGallery: PluginGallery = {
   id: "powerwall2-local",
   title: "Powerwall Gateway",
   description:
@@ -38,7 +39,7 @@ export const powerwallGallery = {
     {
       label: "Setup — tested local connection",
       Component: () => (
-        <PowerwallGatewayView
+        <Powerwall2LocalView
           values={values}
           onChange={noop}
           onTest={noop}
@@ -51,13 +52,13 @@ export const powerwallGallery = {
     {
       label: "Settings — connection pending",
       Component: () => (
-        <PowerwallGatewayTestResult pending disabled onTest={noop} />
+        <Powerwall2LocalTestResult pending disabled onTest={noop} />
       ),
     },
     {
       label: "Settings — stale telemetry",
       Component: () => (
-        <PowerwallGatewayTestResult
+        <Powerwall2LocalTestResult
           pending={false}
           disabled={false}
           onTest={noop}

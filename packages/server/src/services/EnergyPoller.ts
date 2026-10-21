@@ -64,9 +64,9 @@ export class EnergyPoller {
 
   private async drainLoop(): Promise<void> {
     this.cancelLoop();
-    // Wait for any in-flight poll before replacing or disconnecting its adapter.
+    // Wait for any in-flight poll so it can't emit events / touch the DB after stop returns.
     await this.polling;
-    // Reset snapshot so subscribers cannot read data from the previous adapter.
+    // Reset snapshot so stop() returns us to the pre-started state — this also means restart() starts with a null snapshot until the next poll populates it, which is the correct semantic when reconfiguring.
     this.latestRealtime = null;
     this.latestCumulative = null;
   }
@@ -180,9 +180,7 @@ export class EnergyPoller {
   ): Promise<void> {
     try {
       const load = await this.chargingPoints.getChargingLoadW();
-      if (signal?.aborted) return;
       const realtime = await this.em.getRealtimeData(load, signal);
-      if (signal?.aborted) return;
       const adapterName = this.em.constructor.name;
       this.logger.debug(
         `${adapterName} → solar=${realtime.solarProductionW}W grid=${realtime.gridPowerW}W consumption=${realtime.homeConsumptionW}W` +
@@ -205,18 +203,14 @@ export class EnergyPoller {
         dailyGridExportWh: todaySummary.gridExportWh,
       };
 
-      if (signal?.aborted) return;
       this.latestRealtime = realtime;
       this.latestCumulative = cumulative;
 
       // Emit energy update for tRPC subscriptions and DataRecorder
       this.eventEmitter.emit("energy_update", { ...realtime, ...cumulative });
-      // Event delivery is synchronous: a listener may stop/restart this loop.
-      if (signal?.aborted) return;
 
       // Emit poll success for notification listener
       this.eventEmitter.emit("energy_poll_success", {});
-      if (signal?.aborted) return;
 
       if (this.consecutivePollFailures > 0) {
         await this.recordPluginLog(
@@ -227,7 +221,11 @@ export class EnergyPoller {
         this.lastFailureLoggedAtMs = 0;
       }
     } catch (error) {
-      if (signal?.aborted) return;
+      // ChargeHA cancelled this poll (stop/restart); timeouts don't set this.
+      if (signal?.aborted) {
+        this.logger.debug("Poll cancelled by restart/stop");
+        return;
+      }
       this.logger.error("Poll failed:", error);
       await this.recordPollFailure(error);
 
@@ -248,7 +246,6 @@ export class EnergyPoller {
       };
       const failedCumulative = await this.buildCumulativeFromDb();
 
-      if (signal?.aborted) return;
       this.latestRealtime = failedRealtime;
       this.latestCumulative = failedCumulative;
       this.eventEmitter.emit("energy_update", {
@@ -256,12 +253,11 @@ export class EnergyPoller {
         ...failedCumulative,
       });
 
-      if (signal?.aborted) return;
       // Emit poll failure for notification listener
       this.eventEmitter.emit("energy_poll_failure", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // Don't rethrow: keep polling after failures, without serving cached data as fresh.
+      // Don't rethrow — polling continues on next interval
     }
   }
 

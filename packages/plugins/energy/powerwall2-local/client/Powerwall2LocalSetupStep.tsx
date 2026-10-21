@@ -2,15 +2,15 @@ import { useCallback, useState } from "react";
 import { Spinner } from "../../../hostUi.ts";
 import type { PluginStepDef, WizardNext } from "../../../hostUi.ts";
 import { trpc } from "./trpc.ts";
-import { PowerwallGatewayForm } from "./PowerwallGatewayForm.tsx";
+import { Powerwall2LocalForm } from "./Powerwall2LocalForm.tsx";
 import {
-  type PowerwallGatewayValues,
+  type Powerwall2LocalValues,
   valuesFrom,
-} from "./PowerwallGatewayFields.ts";
+} from "./Powerwall2LocalFields.ts";
 
 const nextState = (
-  validated: PowerwallGatewayValues | null,
-  save: (values: PowerwallGatewayValues) => Promise<void>,
+  validated: Powerwall2LocalValues | null,
+  save: (values: Powerwall2LocalValues) => Promise<void>,
 ): WizardNext => {
   if (!validated) {
     return {
@@ -25,18 +25,18 @@ const nextState = (
   };
 };
 
-export const powerwallGatewaySetupStep: PluginStepDef = {
+export const powerwall2LocalSetupStep: PluginStepDef = {
   id: "powerwall2-local-setup",
   label: "Tesla Powerwall 2 via Gateway (Local)",
   useStep: () => {
     const { data } = trpc.plugin.energy.powerwall2_local.getConfig.useQuery();
     const saveMutation = trpc.plugin.energy.powerwall2_local.setConfig
       .useMutation();
-    const [validated, setValidated] = useState<PowerwallGatewayValues | null>(
+    const [validated, setValidated] = useState<Powerwall2LocalValues | null>(
       null,
     );
     const save = useCallback(
-      async (values: PowerwallGatewayValues) => {
+      async (values: Powerwall2LocalValues) => {
         await saveMutation.mutateAsync({ ...values });
       },
       [saveMutation],
@@ -46,7 +46,7 @@ export const powerwallGatewaySetupStep: PluginStepDef = {
     return {
       next: nextState(validated, save),
       view: (
-        <PowerwallGatewayForm
+        <Powerwall2LocalForm
           initial={initial}
           onTestSuccess={setValidated}
         />

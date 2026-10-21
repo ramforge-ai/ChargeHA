@@ -3,7 +3,7 @@ import { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencie
 import type { VehicleManager } from "@chargeha/server/services/VehicleManager";
 import type { ChargingPointManager } from "@chargeha/server/services/ChargingPointManager";
 import { throwingMock } from "../../../../../server/src/test-helpers/throwingMock.ts";
-import { PowerwallGatewayPlugin } from "../PowerwallGatewayPlugin.ts";
+import { Powerwall2LocalPlugin } from "../Powerwall2LocalPlugin.ts";
 
 export async function pluginHarness() {
   const key = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)));
@@ -23,5 +23,5 @@ export async function pluginHarness() {
     },
     geocode: () => Promise.reject(new Error("not mocked")),
   });
-  return { db, deps, plugin: new PowerwallGatewayPlugin(deps) };
+  return { db, deps, plugin: new Powerwall2LocalPlugin(deps) };
 }

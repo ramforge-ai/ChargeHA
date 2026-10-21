@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { pluginHarness } from "./test-helpers/pluginHarness.ts";
-import { PowerwallGatewayAdapter } from "./PowerwallGatewayAdapter.ts";
+import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 
 import {
   createCallerFactory,
   type TrpcContext,
 } from "../../../../server/src/trpc/trpc.ts";
 import { throwingMock } from "../../../../server/src/test-helpers/throwingMock.ts";
-import { createPowerwallGatewayRouter } from "./router.ts";
+import { createPowerwall2LocalRouter } from "./router.ts";
 
 describe("Powerwall plugin and config router", () => {
   async function setup() {
     const base = await pluginHarness();
     const caller = createCallerFactory(
-      createPowerwallGatewayRouter(base.deps, base.plugin),
+      createPowerwall2LocalRouter(base.deps, base.plugin),
     )(
       throwingMock<TrpcContext>("TrpcContext"),
     );
@@ -44,7 +44,7 @@ describe("Powerwall plugin and config router", () => {
     expect(await ctx.deps.getSecret("password")).toBe(config.password);
     expect(ctx.plugin.secretKeys).toEqual(["password"]);
     expect(await ctx.plugin.createAdapter()).toBeInstanceOf(
-      PowerwallGatewayAdapter,
+      Powerwall2LocalAdapter,
     );
   });
   it("partial saves preserve other settings and the encrypted password", async () => {

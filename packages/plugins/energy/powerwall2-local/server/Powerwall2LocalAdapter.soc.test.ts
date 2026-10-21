@@ -1,7 +1,7 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { Logger } from "@chargeha/server/lib/Logger";
-import { PowerwallGatewayAdapter } from "./PowerwallGatewayAdapter.ts";
+import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 import {
   aggregates,
   FakePowerwallApi,
@@ -15,7 +15,7 @@ describe("Powerwall Gateway usable battery percentage", () => {
       aggregates({ battery: meter(batteryPower) }),
     );
     api.soeResponse = { percentage };
-    return new PowerwallGatewayAdapter(
+    return new Powerwall2LocalAdapter(
       api,
       60,
       new Logger("test", "error"),

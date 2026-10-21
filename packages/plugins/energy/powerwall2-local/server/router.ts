@@ -7,11 +7,19 @@ import {
   freshnessSchema,
   gatewayHostSchema,
   pollIntervalSchema,
-  POWERWALL_GATEWAY_SECRET_KEYS,
-  powerwallGatewayConfigDef,
+  POWERWALL2_LOCAL_SECRET_KEYS,
+  powerwall2LocalConfigDef,
 } from "./config.ts";
 
-import type { PowerwallGatewayPlugin } from "./PowerwallGatewayPlugin.ts";
+import type { Powerwall2LocalConfig } from "./config.ts";
+import type { DeviceInfo, EnergyData } from "@chargeha/shared";
+
+interface Powerwall2LocalRouterPlugin {
+  testConnection(input: Powerwall2LocalConfig): Promise<
+    | { success: true; device: DeviceInfo; realtime: EnergyData }
+    | { success: false; error: string }
+  >;
+}
 
 const testConnectionInput = z.object({
   host: gatewayHostSchema,
@@ -23,15 +31,15 @@ const testConnectionInput = z.object({
   ),
 });
 
-export function createPowerwallGatewayRouter(
+export function createPowerwall2LocalRouter(
   deps: PluginDependencies,
-  plugin: Pick<PowerwallGatewayPlugin, "testConnection">,
+  plugin: Powerwall2LocalRouterPlugin,
 ) {
   return router({
     ...createPluginConfigProcedures(
       deps,
-      powerwallGatewayConfigDef,
-      POWERWALL_GATEWAY_SECRET_KEYS,
+      powerwall2LocalConfigDef,
+      POWERWALL2_LOCAL_SECRET_KEYS,
     ),
 
     testConnection: publicProcedure

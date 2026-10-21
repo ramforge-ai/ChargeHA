@@ -6,10 +6,9 @@ import {
   PluginSettingsHostProvider,
   type PluginSettingsState,
 } from "../../../../client/src/components/pages/Settings/pluginSettingsHost.ts";
-import { PowerwallGatewayForm } from "./PowerwallGatewayForm.tsx";
-import { PowerwallGatewayConfig } from "./PowerwallGatewayConfig.tsx";
-import { powerwallGatewaySetupStep } from "./PowerwallGatewaySetupStep.tsx";
-import { powerwallGallery } from "./gallery.tsx";
+import { Powerwall2LocalForm } from "./Powerwall2LocalForm.tsx";
+import { Powerwall2LocalConfig } from "./Powerwall2LocalConfig.tsx";
+import { powerwall2LocalSetupStep } from "./Powerwall2LocalSetupStep.tsx";
 
 const mocks = vi.hoisted(() => ({
   config: {
@@ -101,7 +100,7 @@ describe("Powerwall setup and settings", () => {
 
   it("requires host and password before testing, and masks the password", () => {
     renderWithProviders(
-      <PowerwallGatewayForm
+      <Powerwall2LocalForm
         initial={{ ...initial, password: "" }}
         onTestSuccess={vi.fn()}
       />,
@@ -120,7 +119,7 @@ describe("Powerwall setup and settings", () => {
   it("only accepts a successful test for unchanged input", () => {
     const validated = vi.fn();
     renderWithProviders(
-      <PowerwallGatewayForm initial={initial} onTestSuccess={validated} />,
+      <Powerwall2LocalForm initial={initial} onTestSuccess={validated} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
     const callbacks = mocks.test.mock.calls[0][1];
@@ -140,7 +139,7 @@ describe("Powerwall setup and settings", () => {
       data: { success: false, error: "Login failed" },
     });
     renderWithProviders(
-      <PowerwallGatewayForm initial={initial} onTestSuccess={vi.fn()} />,
+      <Powerwall2LocalForm initial={initial} onTestSuccess={vi.fn()} />,
     );
     expect(screen.getByText("Login failed")).toBeInTheDocument();
     expect(screen.queryByText(/Connected —/)).not.toBeInTheDocument();
@@ -148,7 +147,7 @@ describe("Powerwall setup and settings", () => {
   it("disables duplicate tests while a request is pending", () => {
     mocks.state.isPending = true;
     renderWithProviders(
-      <PowerwallGatewayForm initial={initial} onTestSuccess={vi.fn()} />,
+      <Powerwall2LocalForm initial={initial} onTestSuccess={vi.fn()} />,
     );
     expect(screen.getByRole("button", { name: "Testing…" })).toBeDisabled();
   });
@@ -159,7 +158,7 @@ describe("Powerwall setup and settings", () => {
     };
     renderWithProviders(
       <PluginSettingsHostProvider value={report}>
-        <PowerwallGatewayConfig />
+        <Powerwall2LocalConfig />
       </PluginSettingsHostProvider>,
     );
     fireEvent.change(screen.getByLabelText("Gateway IP address"), {
@@ -177,7 +176,7 @@ describe("Powerwall setup and settings", () => {
     );
   });
   it("tests unsaved settings, not the old saved host", () => {
-    renderWithProviders(<PowerwallGatewayConfig />);
+    renderWithProviders(<Powerwall2LocalConfig />);
     fireEvent.change(screen.getByLabelText("Gateway IP address"), {
       target: { value: "192.0.2.20" },
     });
@@ -191,7 +190,7 @@ describe("Powerwall setup and settings", () => {
       data: success,
       variables: initial,
     });
-    renderWithProviders(<PowerwallGatewayConfig />);
+    renderWithProviders(<Powerwall2LocalConfig />);
     expect(screen.getByText(/Connected —/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Gateway IP address"), {
       target: { value: "192.0.2.20" },
@@ -200,7 +199,7 @@ describe("Powerwall setup and settings", () => {
   });
 
   function WizardHarness() {
-    const step = powerwallGatewaySetupStep.useStep({
+    const step = powerwall2LocalSetupStep.useStep({
       onAdvance: vi.fn(),
       onBack: vi.fn(),
       onSkipTo: vi.fn(),
@@ -249,23 +248,5 @@ describe("Powerwall setup and settings", () => {
     expect(screen.getByLabelText("Gateway IP address")).toHaveValue(
       initial.host,
     );
-  });
-  it("renders gallery specimens with no network or tRPC calls", () => {
-    const fetch = vi.spyOn(globalThis, "fetch");
-    try {
-      renderWithProviders(
-        <>
-          {powerwallGallery.specimens.map(({ label, Component }) => (
-            <Component key={label} />
-          ))}
-        </>,
-      );
-      expect(screen.getByText(/Connected —/)).toBeInTheDocument();
-      expect(screen.getByText(/telemetry is stale/)).toBeInTheDocument();
-      expect(fetch).not.toHaveBeenCalled();
-      expect(mocks.test).not.toHaveBeenCalled();
-    } finally {
-      fetch.mockRestore();
-    }
   });
 });

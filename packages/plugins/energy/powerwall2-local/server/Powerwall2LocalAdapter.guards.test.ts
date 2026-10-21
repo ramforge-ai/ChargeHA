@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { FakeTime } from "@std/testing/time";
 import { Logger } from "@chargeha/server/lib/Logger";
-import { PowerwallGatewayAdapter } from "./PowerwallGatewayAdapter.ts";
+import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 import {
   aggregates,
   FakePowerwallApi,
@@ -41,11 +41,11 @@ class DeferredApi extends FakePowerwallApi {
 describe("Powerwall poll containment", () => {
   let time: FakeTime;
   let api: DeferredApi;
-  let adapter: PowerwallGatewayAdapter;
+  let adapter: Powerwall2LocalAdapter;
   beforeEach(() => {
     time = new FakeTime(NOW);
     api = new DeferredApi(aggregates());
-    adapter = new PowerwallGatewayAdapter(
+    adapter = new Powerwall2LocalAdapter(
       api,
       60,
       new Logger("PowerwallGuardTest", "error"),

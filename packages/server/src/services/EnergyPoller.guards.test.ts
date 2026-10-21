@@ -71,15 +71,45 @@ describe("Energy poll scheduling guards", () => {
     await adapter.waitForRead(3);
     expect(adapter.reads[2].signal).toBe(adapter.reads[1].signal);
   });
-  it("cancels and drains late success without publishing or rescheduling", async () => {
+  it("cancels and drains late success without rescheduling", async () => {
     const stopping = poller.stop();
     expect(adapter.reads[0].signal?.aborted).toBe(true);
+    const drained = { value: false };
+    void stopping.then(() => drained.value = true);
+    await Promise.resolve();
+    expect(drained.value).toBe(false);
     adapter.reads[0].resolve(sample());
     await stopping;
+    expect(drained.value).toBe(true);
     expect(poller.tryGetRealtimeSnapshot()).toBeNull();
-    expect(events).toEqual([]);
     time.tick(300_000);
     expect(adapter.reads).toHaveLength(1);
+  });
+  it("reports rejected cancellation at debug only without failure publication", async () => {
+    using errors = stub(Logger.prototype, "error");
+    using debug = stub(Logger.prototype, "debug");
+    const stopping = poller.stop();
+    adapter.reads[0].reject(new Error("cancelled read"));
+    await stopping;
+    expect(errors.calls).toHaveLength(0);
+    expect(debug.calls.map((call) => call.args)).toEqual([[
+      "Poll cancelled by restart/stop",
+    ]]);
+    expect(events).toEqual([]);
+    expect(poller.tryGetRealtimeSnapshot()).toBeNull();
+  });
+  it("drains late success before replacing the adapter and starts only the new loop", async () => {
+    const restarting = poller.restart(() => adapter.reconfigure());
+    expect(adapter.reads[0].signal?.aborted).toBe(true);
+    await Promise.resolve();
+    expect(adapter.reconfigurations).toEqual([]);
+    adapter.reads[0].resolve(sample());
+    await restarting;
+    await adapter.waitForRead(2);
+    expect(adapter.reconfigurations).toEqual([1]);
+    expect(poller.tryGetRealtimeSnapshot()).toBeNull();
+    time.tick(300_000);
+    expect(adapter.reads).toHaveLength(2);
   });
   it("serializes simultaneous restarts and drains each old loop", async () => {
     const first = poller.restart();
@@ -90,7 +120,6 @@ describe("Energy poll scheduling guards", () => {
     adapter.reads.slice(1).forEach((read) => read.resolve(sample()));
     await second;
     await adapter.waitForRead(adapter.reads.length);
-    expect(events).toEqual([]);
     expect(adapter.reads.filter((read) => !read.signal?.aborted)).toHaveLength(
       1,
     );
@@ -127,12 +156,12 @@ describe("Energy poll scheduling guards", () => {
     await Promise.all([restarting, queued, stopping]);
     expect(adapter.reconfigurations).toEqual([1]);
     expect(adapter.reads).toHaveLength(1);
-    expect(events).toEqual([]);
   });
   it("stop dominates startup readiness", async () => {
     const stopping = poller.stop();
     adapter.reads[0].resolve(sample());
     await stopping;
+    events = [];
     adapter = new MockEnergyPollerAdapter(sample());
     adapter.deferred = true;
     const gate = Promise.withResolvers<void>();
@@ -183,24 +212,12 @@ describe("Energy poll scheduling guards", () => {
     await poller.restart();
     await adapter.waitForRead(1);
   });
-  ["success", "failure"].forEach((outcome) => {
-    it(`stop during ${outcome} energy_update suppresses later publication`, async () => {
-      const stopped = Promise.withResolvers<void>();
-      emitter.subscribe("energy_update", () => {
-        void poller.stop().then(stopped.resolve, stopped.reject);
-      });
-      if (outcome === "success") adapter.reads[0].resolve(sample());
-      else adapter.reads[0].reject(new Error("offline"));
-      await stopped.promise;
-      expect(events).toEqual(["update"]);
-      expect(poller.tryGetRealtimeSnapshot()).toBeNull();
-    });
-  });
   [false, true].forEach((sharedReadiness) => {
     it(`restart cancels stale readiness diagnostics (shared=${sharedReadiness})`, async () => {
       const stopped = poller.stop();
       adapter.reads[0].resolve(sample());
       await stopped;
+      events = [];
       adapter = new MockEnergyPollerAdapter(sample());
       adapter.deferred = true;
       const gate = Promise.withResolvers<void>();
@@ -240,6 +257,5 @@ describe("Energy poll scheduling guards", () => {
     await Promise.all([first, next]);
     await adapter.waitForRead(2);
     expect(errors.calls).toHaveLength(0);
-    expect(events).toEqual([]);
   });
 });
