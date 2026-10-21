@@ -8,10 +8,10 @@ import {
   gatewayHostSchema,
   pollIntervalSchema,
   POWERWALL2_LOCAL_SECRET_KEYS,
+  type Powerwall2LocalConfig,
   powerwall2LocalConfigDef,
 } from "./config.ts";
 
-import type { Powerwall2LocalConfig } from "./config.ts";
 import type { DeviceInfo, EnergyData } from "@chargeha/shared";
 
 interface Powerwall2LocalRouterPlugin {

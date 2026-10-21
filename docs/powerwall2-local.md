@@ -163,10 +163,11 @@ Gateway meter reporting and both clocks instead of disabling freshness checks.
 ## Development and verification
 
 Run `deno task check:all` from the repository root. Plugin server tests exercise
-transport errors/timeouts, authentication, validation, encrypted config storage,
-connection-test cleanup, and real poller/controller failure and recovery with
-fake hardware. Client tests exercise wizard validation, explicit save, draft
-connection tests, pending/error feedback and network-free gallery specimens.
+transport errors/timeouts, authentication, validation, encrypted config storage
+and connection-test cleanup with fake hardware. Core controller tests exercise
+failed energy data and recovery using a mock energy adapter. Client tests cover
+wizard validation, explicit save, draft connection tests, pending/error feedback
+and network-free gallery specimens.
 
 Run `deno task dev:client` and open `/components` for static setup and
 connection feedback examples. They do not query a Gateway.
@@ -181,12 +182,13 @@ trades quicker solar tracking for less Gateway traffic; charging thresholds and
 schedules are not changed.
 
 The shared energy poller permits only one cycle in flight. Stop and reconfigure
-cancel outstanding work and discard cancelled results. Restarts wait for the
-previous cycle to finish before replacing the adapter. Powerwall reads
-aggregates then SOC sequentially through an HTTPS pool capped at one connection.
-Each request has a 10-second absolute deadline. Authentication and retry can
-make a complete poll take longer than 20 seconds, but cannot overlap the next
-scheduled poll. Cancellation destroys the active request.
+abort outstanding requests and await in-flight work before stop returns or the
+adapter is replaced. Rejected cancellation is logged at debug level only; a late
+success may finish while draining, but the old loop is not rescheduled.
+Powerwall reads aggregates then SOC sequentially through an HTTPS pool capped at
+one connection. Each request has a 10-second absolute deadline. Authentication
+and retry can make a complete poll take longer than 20 seconds, but cannot
+overlap the next scheduled poll. Cancellation destroys the active request.
 
 Success and failure both wait the configured interval after completion. HTTP 429
 and 503 activate the plugin client's cooldown: Retry-After seconds or an HTTP
@@ -195,12 +197,12 @@ minutes. All endpoints, including login, fail fast during cooldown without
 network traffic. There is no cloud fallback or reuse of stale readings as fresh
 charging input.
 
-The plugin persists a phase-labelled connection failure and throttles repeated
-direct-read failures to one entry per five minutes. The shared poller separately
-retains its existing failed-poll/recovery breadcrumbs for all integrations. A
-failed connection followed by the first failed scheduled poll can produce two
-startup entries (connection and poll); subsequent scheduled failures remain
-throttled.
+The adapter persists connection failures only, throttled to one entry per five
+minutes. The shared poller logs scheduled failures and recovery, with repeated
+failures throttled. A failed connection followed by the first failed scheduled
+poll can produce two startup entries (connection and poll). Interactive
+connection tests return results to the caller without writing to the Logs page;
+console diagnostics are not persisted Logs entries.
 
 Unknown dependency/transport errors are normalized inside the plugin before
 reaching core Logs, failure events or connection-test results. Trusted plugin
