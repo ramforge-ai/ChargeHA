@@ -1,7 +1,3 @@
-import {
-  DEFAULT_POWERWALL_MAX_STALENESS_SECONDS,
-  DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS,
-} from "../server/config.ts";
 import { createElement } from "react";
 import type { PluginConfigField } from "../../../hostUi.ts";
 import { Powerwall2LocalPasswordHelp } from "./Powerwall2LocalPasswordHelp.tsx";
@@ -68,8 +64,6 @@ export const valuesFrom = (
   host: values.host ?? "",
   email: values.email ?? "",
   password: values.password ?? "",
-  maxStalenessSeconds: values.maxStalenessSeconds ||
-    String(DEFAULT_POWERWALL_MAX_STALENESS_SECONDS),
-  pollIntervalSeconds: values.pollIntervalSeconds ||
-    String(DEFAULT_POWERWALL_POLL_INTERVAL_SECONDS),
+  maxStalenessSeconds: values.maxStalenessSeconds ?? "",
+  pollIntervalSeconds: values.pollIntervalSeconds ?? "",
 });

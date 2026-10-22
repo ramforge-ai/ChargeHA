@@ -11,10 +11,16 @@ interface RecordedRequest {
 
 export class FakePowerwallHttp implements PowerwallHttp {
   readonly requests: RecordedRequest[] = [];
+  closeCalls = 0;
+
   private readonly responses = new Map<
     string,
     (PowerwallHttpResponse | Error)[]
   >();
+
+  close(): void {
+    this.closeCalls++;
+  }
 
   queue(path: string, ...responses: (PowerwallHttpResponse | Error)[]): this {
     this.responses.set(path, responses);

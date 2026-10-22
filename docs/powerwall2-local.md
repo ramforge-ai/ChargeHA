@@ -175,11 +175,9 @@ connection feedback examples. They do not query a Gateway.
 ## Polling safeguards
 
 Normal polling waits **30 seconds after the previous cycle completes**. The
-advanced **Polling interval** setting accepts whole seconds from 10 to 60.
-Existing installations without that setting use 30 seconds; meter freshness
-remains at its existing configured value (default 60 seconds). A slower interval
-trades quicker solar tracking for less Gateway traffic; charging thresholds and
-schedules are not changed.
+advanced **Polling interval** setting accepts whole seconds from 10 to 60. A
+slower interval trades quicker solar tracking for less Gateway traffic; charging
+thresholds and schedules are not changed.
 
 The shared energy poller permits only one cycle in flight. Stop and reconfigure
 abort outstanding requests and await in-flight work before stop returns or the
@@ -209,4 +207,4 @@ reaching core Logs, failure events or connection-test results. Trusted plugin
 diagnostics retain authentication, HTTP status/cooldown, timeout, cancellation
 and telemetry-validation categories, but arbitrary error messages/causes and
 response bodies are not forwarded. Connection-test construction failures return
-a structured safe failure; cleanup failures do not replace a primary diagnosis.
+a structured safe failure.

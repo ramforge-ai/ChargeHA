@@ -64,9 +64,12 @@ export class EnergyPoller {
 
   private async drainLoop(): Promise<void> {
     this.cancelLoop();
-    // Wait for any in-flight poll so it can't emit events / touch the DB after stop returns.
+    // Wait for any in-flight poll so it can't emit events / touch the DB
+    // after stop returns.
     await this.polling;
-    // Reset snapshot so stop() returns us to the pre-started state — this also means restart() starts with a null snapshot until the next poll populates it, which is the correct semantic when reconfiguring.
+    // Reset snapshot so stop() returns us to the pre-started state — this
+    // also means restart() starts with a null snapshot until the next poll
+    // populates it, which is the correct semantic when reconfiguring.
     this.latestRealtime = null;
     this.latestCumulative = null;
   }
@@ -77,13 +80,13 @@ export class EnergyPoller {
     if (this.stopped) return this.lifecycle;
     this.cancelLoop();
     this.lifecycle = this.lifecycle.then(async () => {
-      await this.drainLoop();
-      if (this.stopped) return;
-      // Own cancellation throughout reconfiguration/readiness and the polling loop.
-      // A queued operation gets a fresh controller only after its predecessor drains.
       const controller = new AbortController();
-      this.controller = controller;
       try {
+        await this.drainLoop();
+        if (this.stopped) return;
+        // Own cancellation throughout reconfiguration/readiness and the polling loop.
+        // A queued operation gets a fresh controller only after its predecessor drains.
+        this.controller = controller;
         await beforeStart?.();
         if (controller.signal.aborted) return;
         await this.em.ready();
@@ -98,10 +101,6 @@ export class EnergyPoller {
         if (!controller.signal.aborted) {
           this.logger.error("Energy poller restart failed:", error);
         }
-      }
-    }).catch((error) => {
-      if (!this.stopped) {
-        this.logger.error("Energy poller restart failed:", error);
       }
     });
     return this.lifecycle;

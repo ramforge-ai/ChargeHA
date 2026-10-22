@@ -51,41 +51,20 @@ export class Powerwall2LocalPlugin implements EnergyPlugin {
   }
 
   async testConnection(input: Powerwall2LocalConfig) {
+    // Interactive test — results go to the caller, not the Logs page.
+    const noopDbLog = new PluginDbLogger(
+      () => Promise.resolve(),
+      this.deps.log,
+    );
     try {
-      // Interactive test — results go to the caller, not the Logs page.
-      const noopDbLog = new PluginDbLogger(
-        () => Promise.resolve(),
-        this.deps.log,
-      );
       const adapter = await this.createAdapter(input, noopDbLog);
-      const result = await this.readConnection(adapter);
       try {
+        const device = await adapter.getDeviceInfo();
+        const realtime = await adapter.getRealtimeData();
+        return { success: true as const, device, realtime };
+      } finally {
         await adapter.disconnect();
-      } catch {
-        // Cleanup must not erase a primary connection diagnosis or expose raw errors.
-        this.deps.log.warn("Powerwall connection-test cleanup failed");
-        if (result.success) {
-          return {
-            success: false as const,
-            error: "Powerwall connection-test cleanup failed",
-          };
-        }
       }
-      return result;
-    } catch (error) {
-      return {
-        success: false as const,
-        error: safePowerwallError(error).message,
-      };
-    }
-  }
-
-  private async readConnection(adapter: EnergySourceAdapter) {
-    try {
-      await adapter.connect();
-      const device = await adapter.getDeviceInfo();
-      const realtime = await adapter.getRealtimeData();
-      return { success: true as const, device, realtime };
     } catch (error) {
       return {
         success: false as const,

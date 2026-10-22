@@ -238,6 +238,59 @@ describe("Powerwall setup and settings", () => {
     });
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
+  it("shows getConfig defaults in a fresh wizard form", () => {
+    mocks.config = {
+      host: "",
+      email: "",
+      password: "",
+      maxStalenessSeconds: "60",
+      pollIntervalSeconds: "30",
+    };
+    renderWithProviders(<WizardHarness />);
+    expect(screen.getByLabelText("Maximum telemetry age (seconds)"))
+      .toHaveValue("60");
+    expect(screen.getByLabelText("Polling interval (seconds)")).toHaveValue(
+      "30",
+    );
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+  it("keeps missing numeric settings blank in the draft connection payload", () => {
+    mocks.config = {
+      host: initial.host,
+      email: initial.email,
+      password: initial.password,
+    };
+    renderWithProviders(<Powerwall2LocalConfig />);
+    expect(screen.getByLabelText("Maximum telemetry age (seconds)"))
+      .toHaveValue("");
+    expect(screen.getByLabelText("Polling interval (seconds)")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+    expect(mocks.test).toHaveBeenCalledWith({
+      ...initial,
+      maxStalenessSeconds: "",
+      pollIntervalSeconds: "",
+    });
+  });
+  it("preserves a deliberately cleared wizard field and an edited interval", () => {
+    renderWithProviders(<WizardHarness />);
+    fireEvent.change(screen.getByLabelText("Maximum telemetry age (seconds)"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Polling interval (seconds)"), {
+      target: { value: "20" },
+    });
+    expect(screen.getByLabelText("Maximum telemetry age (seconds)"))
+      .toHaveValue("");
+    expect(screen.getByLabelText("Polling interval (seconds)")).toHaveValue(
+      "20",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+    expect(mocks.test).toHaveBeenCalledWith({
+      ...initial,
+      maxStalenessSeconds: "",
+      pollIntervalSeconds: "20",
+    }, expect.any(Object));
+  });
   it("waits for config before mounting the wizard fields", () => {
     mocks.config = undefined;
     const { rerender } = renderWithProviders(<WizardHarness />);

@@ -35,6 +35,21 @@ describe("Powerwall plugin and config router", () => {
     await ctx.plugin.shutdown();
     ctx.db.close();
   });
+  it("returns server defaults for a fresh plugin without stored config", async () => {
+    expect(
+      await ctx.db.getPluginConfig("powerwall2_local.max_staleness_seconds"),
+    ).toBeNull();
+    expect(
+      await ctx.db.getPluginConfig("powerwall2_local.poll_interval_seconds"),
+    ).toBeNull();
+    expect(await ctx.caller.getConfig()).toEqual({
+      host: "",
+      email: "",
+      password: "",
+      maxStalenessSeconds: "60",
+      pollIntervalSeconds: "30",
+    });
+  });
   it("round-trips the config with an encrypted, namespaced password", async () => {
     await ctx.caller.setConfig(config);
     expect(await ctx.caller.getConfig()).toEqual(config);
