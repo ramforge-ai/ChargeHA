@@ -27,6 +27,12 @@ describe("Powerwall HTTPS transport", () => {
         timeout: 10_000,
       });
       expect(harness.writes).toEqual(["{}"]);
+      expect(harness.options[0].agent).toMatchObject({
+        keepAlive: true,
+        maxSockets: 1,
+        maxTotalSockets: 1,
+        maxFreeSockets: 1,
+      });
     } finally {
       harness.restore();
     }
@@ -102,6 +108,80 @@ describe("Powerwall HTTPS transport", () => {
       await rejected;
       expect(harness.state.destroyed).toBe(true);
     } finally {
+      harness.restore();
+      time.restore();
+    }
+  });
+  it("ignores retired request/response events while a replacement is active", async () => {
+    const harness = httpsHarness("hang");
+    const http = makeNodeHttpsPowerwallHttp();
+    const read = () => http.request("192.0.2.10", "/test", "GET", {});
+    try {
+      const failed = expect(read()).rejects.toThrow("10000ms");
+      const retired = harness.exchanges[0];
+      retired.request.emit("timeout");
+      await failed;
+      const replacement = read();
+      expect(harness.options[1].agent).not.toBe(harness.options[0].agent);
+      retired.request.emit("error", new Error("late transport error"));
+      retired.request.emit("timeout");
+      retired.reply();
+      retired.response.emit("aborted");
+      retired.response.emit("end");
+      expect(retired.destroyed).toEqual({ requests: 1, responses: 1 });
+      expect(harness.exchanges[1].destroyed.requests).toBe(0);
+      harness.exchanges[1].finish();
+      expect((await replacement).status).toBe(200);
+      const next = read();
+      expect(harness.options[2].agent).toBe(harness.options[1].agent);
+      harness.exchanges[2].finish();
+      expect((await next).status).toBe(200);
+      expect(harness.exchanges).toHaveLength(3);
+    } finally {
+      http.close?.();
+      harness.restore();
+    }
+  });
+
+  it("issues nothing on pre-abort and does not recreate pools from close callbacks", async () => {
+    const time = new FakeTime();
+    const harness = httpsHarness("hang");
+    const http = makeNodeHttpsPowerwallHttp();
+    const controller = new AbortController();
+    controller.abort();
+    try {
+      http.close?.();
+      await expect(
+        http.request(
+          "192.0.2.10",
+          "/test",
+          "GET",
+          {},
+          undefined,
+          controller.signal,
+        ),
+      ).rejects.toThrow("cancelled");
+      expect(harness.options).toHaveLength(0);
+      const active = expect(http.request("192.0.2.10", "/active", "GET", {}))
+        .rejects.toThrow("cancelled");
+      const queued = expect(http.request("192.0.2.10", "/queued", "GET", {}))
+        .rejects.toThrow("cancelled");
+      http.close?.();
+      http.close?.();
+      await Promise.all([active, queued]);
+      harness.exchanges.map((exchange) => {
+        exchange.request.emit("timeout");
+        exchange.reply();
+        expect(exchange.destroyed).toEqual({ requests: 1, responses: 1 });
+      });
+      time.tick(20_000);
+      expect(harness.options).toHaveLength(2);
+      const reused = http.request("192.0.2.10", "/reused", "GET", {});
+      expect(harness.options[2].agent).not.toBe(harness.options[0].agent);
+      harness.exchanges[2].finish();
+      expect((await reused).status).toBe(200);
+    } finally {
+      http.close?.();
       harness.restore();
       time.restore();
     }

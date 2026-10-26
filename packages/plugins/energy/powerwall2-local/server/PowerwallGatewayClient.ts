@@ -1,4 +1,5 @@
 import https from "node:https";
+import { Socket } from "node:net";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const LOGIN_PATH = "/api/login/Basic";
@@ -43,17 +44,60 @@ const concat = (chunks: readonly Uint8Array[]): Uint8Array => {
   return out;
 };
 
-export const makeNodeHttpsPowerwallHttp = (
-  timeoutMs: number = REQUEST_TIMEOUT_MS,
-): PowerwallHttp => {
+const makePowerwallHttpsPool = () => {
   const agent = new https.Agent({
     keepAlive: true,
     maxSockets: 1,
     maxTotalSockets: 1,
     maxFreeSockets: 1,
   });
+  const pending = new Set<(message: string) => void>();
+  const state = { retired: false };
+  const connect = agent.createConnection;
+  // Agent.destroy() alone can service queued work when a socket closes.
+  // A retired generation must not open another connection, even from late events.
+  agent.createConnection = (options, callback) => {
+    if (state.retired) {
+      callback?.(
+        new Error("Powerwall transport connection failed"),
+        new Socket().destroy(),
+      );
+      return undefined;
+    }
+    return connect.call(agent, options, callback);
+  };
   return {
-    close: () => agent.destroy(),
+    agent,
+    pending,
+    retire(message: string) {
+      state.retired = true;
+      // Remove queued requests before destroying the active socket can free it.
+      Array.from(pending).reverse().map((stop) => stop(message));
+      agent.destroy();
+    },
+  };
+};
+
+export const makeNodeHttpsPowerwallHttp = (
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): PowerwallHttp => {
+  const current: { pool: ReturnType<typeof makePowerwallHttpsPool> | null } = {
+    pool: null,
+  };
+  const retire = (
+    pool: ReturnType<typeof makePowerwallHttpsPool>,
+    message: string,
+  ) => {
+    if (current.pool !== pool) return;
+    // Detach before destroying requests: late events belong only to this pool.
+    // A later explicit request creates a fresh pool, never retries old work.
+    current.pool = null;
+    pool.retire(message);
+  };
+  return {
+    close: () => {
+      if (current.pool) retire(current.pool, "Powerwall request cancelled");
+    },
     request(host, path, method, headers, body, signal) {
       return new Promise<PowerwallHttpResponse>((resolve, reject) => {
         if (signal?.aborted) {
@@ -62,6 +106,8 @@ export const makeNodeHttpsPowerwallHttp = (
           );
           return;
         }
+        const pool = current.pool ?? makePowerwallHttpsPool();
+        current.pool = pool;
         const state = { settled: false };
         const req = https.request({
           hostname: host,
@@ -69,16 +115,17 @@ export const makeNodeHttpsPowerwallHttp = (
           path,
           method,
           headers,
-          agent,
+          agent: pool.agent,
           rejectUnauthorized: false,
           timeout: timeoutMs,
         }, (res) => {
+          res.on("error", () => fail("Powerwall response interrupted"));
+          if (state.settled) {
+            res.destroy();
+            return;
+          }
           const chunks: Uint8Array[] = [];
           res.on("data", (chunk: Uint8Array) => chunks.push(chunk));
-          res.on(
-            "error",
-            () => fail("Powerwall response interrupted"),
-          );
           res.on(
             "aborted",
             () => fail("Powerwall response interrupted"),
@@ -100,8 +147,9 @@ export const makeNodeHttpsPowerwallHttp = (
           state.settled = true;
           clearTimeout(deadline);
           signal?.removeEventListener("abort", abort);
+          pool.pending.delete(stop);
         };
-        const fail = (message: string) => {
+        const stop = (message: string) => {
           if (state.settled) return;
           cleanup();
           req.destroy();
@@ -111,7 +159,11 @@ export const makeNodeHttpsPowerwallHttp = (
             ),
           );
         };
+        const fail = (message: string) => {
+          if (!state.settled) retire(pool, message);
+        };
         const abort = () => fail("Powerwall request cancelled");
+        pool.pending.add(stop);
         // Wall-clock deadline also bounds DNS, socket queueing and trickling bodies.
         const deadline = setTimeout(
           () => fail(`Powerwall request timed out after ${timeoutMs}ms`),
