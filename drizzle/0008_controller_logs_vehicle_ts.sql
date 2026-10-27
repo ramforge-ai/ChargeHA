@@ -1,0 +1,1 @@
+CREATE INDEX `idx_controller_logs_vehicle_ts` ON `controller_logs` (`vehicle_id`,`timestamp`);
