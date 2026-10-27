@@ -545,7 +545,9 @@ describe("AppDatabase", () => {
       expect(total).toBe(1);
     });
 
-    it("getLastControllerLogPerVehicle returns most recent entry per vehicle", async () => {
+    const twoMinutesAgo = () => new Date(Date.now() - 120_000).toISOString();
+
+    it("getLatestControllerLog returns the newest entry for the vehicle", async () => {
       await db.insertControllerLogEntries([
         { ...sampleEntry, vehicleId: "VIN_A", action: "start", targetAmps: 8 },
       ]);
@@ -566,19 +568,29 @@ describe("AppDatabase", () => {
         },
       ]);
 
-      const results = await db.getLastControllerLogPerVehicle();
-      expect(results).toHaveLength(2);
-
-      const vinA = results.find((r) => r.vehicleId === "VIN_A");
-      const vinB = results.find((r) => r.vehicleId === "VIN_B");
-      expect(vinA?.action).toBe("adjust_amps");
-      expect(vinA?.targetAmps).toBe(12);
-      expect(vinB?.action).toBe("none");
+      const log = await db.getLatestControllerLog("VIN_A", twoMinutesAgo());
+      assertExists(log);
+      expect(log.action).toBe("adjust_amps");
+      expect(log.targetAmps).toBe(12);
     });
 
-    it("getLastControllerLogPerVehicle returns empty array when no logs exist", async () => {
-      const results = await db.getLastControllerLogPerVehicle();
-      expect(results).toEqual([]);
+    it("getLatestControllerLog returns null when the vehicle has no logs", async () => {
+      await db.insertControllerLogEntries([
+        { ...sampleEntry, vehicleId: "VIN_A" },
+      ]);
+      expect(await db.getLatestControllerLog("VIN_B", twoMinutesAgo()))
+        .toBeNull();
+    });
+
+    it("getLatestControllerLog ignores entries older than since", async () => {
+      await db.insertControllerLogEntries([
+        { ...sampleEntry, vehicleId: "VIN_A" },
+      ]);
+      db.getDriver().exec(
+        "UPDATE controller_logs SET timestamp = datetime('now', '-5 minutes')",
+      );
+      expect(await db.getLatestControllerLog("VIN_A", twoMinutesAgo()))
+        .toBeNull();
     });
 
     it("filters by actions list", async () => {

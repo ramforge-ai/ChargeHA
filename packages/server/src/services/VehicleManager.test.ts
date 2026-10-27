@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { assertEquals, assertExists } from "@std/assert";
 import type { VehicleChargeState } from "@chargeha/shared";
-import type { VehicleRow } from "../db/types.ts";
+import type { ControllerLogInput, VehicleRow } from "../db/types.ts";
 import { AppDatabase } from "../db/AppDatabase.ts";
 import { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import { VehicleManager } from "./VehicleManager.ts";
@@ -571,28 +571,30 @@ describe("VehicleManager", () => {
   });
 
   describe("addVehicle seeding", () => {
+    const SEED_LOG: ControllerLogInput = {
+      vehicleId: "VIN1",
+      vehicleName: "Test Car",
+      mode: "auto",
+      inputsJson: JSON.stringify({
+        vehicleState: {
+          batteryLevel: 65,
+          chargeLimit: 80,
+          isCharging: false,
+          isPluggedIn: true,
+          chargeAmps: 5,
+          chargeAmpsMax: 32,
+          chargeAmpsMin: 5,
+        },
+      }),
+      checksJson: "[]",
+      action: "none",
+      actionDetail: "Idle",
+      targetAmps: null,
+      traceId: "test",
+    };
+
     it("seeds cached state from a recent controller log", async () => {
-      await db.insertControllerLogEntries([{
-        vehicleId: "VIN1",
-        vehicleName: "Test Car",
-        mode: "auto",
-        inputsJson: JSON.stringify({
-          vehicleState: {
-            batteryLevel: 65,
-            chargeLimit: 80,
-            isCharging: false,
-            isPluggedIn: true,
-            chargeAmps: 5,
-            chargeAmpsMax: 32,
-            chargeAmpsMin: 5,
-          },
-        }),
-        checksJson: "[]",
-        action: "none",
-        actionDetail: "Idle",
-        targetAmps: null,
-        traceId: "test",
-      }]);
+      await db.insertControllerLogEntries([SEED_LOG]);
 
       await manager.addVehicle(VEHICLE_ROW);
 
@@ -604,15 +606,27 @@ describe("VehicleManager", () => {
       expect(state.batteryLevel).toBe(65);
     });
 
+    it("does not seed from a log older than two minutes", async () => {
+      await db.insertControllerLogEntries([SEED_LOG]);
+      db.getDriver().exec(
+        "UPDATE controller_logs SET timestamp = datetime('now', '-3 minutes')",
+      );
+
+      await manager.addVehicle(VEHICLE_ROW);
+
+      const mw = middlewares.get("VIN1");
+      assertExists(mw);
+      expect(mw.getCachedState()).toBeNull();
+    });
+
     it("does not throw when the log read fails", async () => {
-      const originalGet = db.getLastControllerLogPerVehicle.bind(db);
-      db.getLastControllerLogPerVehicle = () =>
-        Promise.reject(new Error("db down"));
+      const originalGet = db.getLatestControllerLog.bind(db);
+      db.getLatestControllerLog = () => Promise.reject(new Error("db down"));
       try {
         await manager.addVehicle(VEHICLE_ROW);
         expect(manager.hasVehicle("VIN1")).toBe(true);
       } finally {
-        db.getLastControllerLogPerVehicle = originalGet;
+        db.getLatestControllerLog = originalGet;
       }
     });
   });
