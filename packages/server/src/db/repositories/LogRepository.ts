@@ -147,7 +147,8 @@ export class LogRepository {
       })
       .from(controllerLogs)
       .where(and(...conditions))
-      .orderBy(asc(controllerLogs.vehicleId), asc(controllerLogs.timestamp));
+      // Overseer groups by vehicle itself; sorting by vehicle_id here would scan idx_controller_logs_vehicle_ts.
+      .orderBy(asc(controllerLogs.timestamp), asc(controllerLogs.id));
 
     return rows.map((row) => ({
       ...row,

@@ -687,5 +687,20 @@ describe("AppDatabase", () => {
       const rows = await db.getRecentStateChanges(60);
       expect(rows).toEqual([]);
     });
+
+    it("getRecentStateChanges returns rows in time order across vehicles", async () => {
+      await db.insertControllerLogEntries([
+        { ...sampleEntry, vehicleId: "VIN_B", action: "start" },
+        { ...sampleEntry, vehicleId: "VIN_A", action: "start" },
+        { ...sampleEntry, vehicleId: "VIN_B", action: "stop" },
+      ]);
+
+      const rows = await db.getRecentStateChanges(60);
+      expect(rows.map((r) => `${r.vehicleId}:${r.action}`)).toEqual([
+        "VIN_B:start",
+        "VIN_A:start",
+        "VIN_B:stop",
+      ]);
+    });
   });
 });
