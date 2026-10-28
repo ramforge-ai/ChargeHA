@@ -8,6 +8,7 @@ import { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import { VehicleManager } from "./VehicleManager.ts";
 import type { VehiclePluginRegistry } from "@chargeha/server/bootstrap/VehiclePluginRegistry";
 import type { VehicleRequestContext } from "@chargeha/shared/plugins";
+import { linkedChargingPointId } from "@chargeha/shared/chargingPoints";
 import { Logger } from "../lib/Logger.ts";
 import { MockMiddleware } from "../test-helpers/MockMiddleware.ts";
 import { MockEventEmitter } from "../test-helpers/MockEventEmitter.ts";
@@ -572,7 +573,7 @@ describe("VehicleManager", () => {
 
   describe("addVehicle seeding", () => {
     const SEED_LOG: ControllerLogInput = {
-      vehicleId: "VIN1",
+      vehicleId: linkedChargingPointId("VIN1"),
       vehicleName: "Test Car",
       mode: "auto",
       inputsJson: JSON.stringify({
