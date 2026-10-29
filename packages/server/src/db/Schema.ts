@@ -126,6 +126,7 @@ export const controllerLogs = sqliteTable("controller_logs", {
   traceId: text("trace_id"),
 }, (table) => [
   index("idx_controller_logs_ts").on(table.timestamp),
+  index("idx_controller_logs_vehicle_ts").on(table.vehicleId, table.timestamp),
   index("idx_controller_logs_trace").on(table.traceId),
 ]);
 

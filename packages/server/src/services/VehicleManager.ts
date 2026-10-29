@@ -16,6 +16,7 @@ import type {
 import { parseDecisionInputs } from "../db/Serialization.ts";
 import { isHome, parseHomeCoords } from "@chargeha/shared/geo";
 import { shortId } from "@chargeha/shared/redact";
+import { linkedChargingPointId } from "@chargeha/shared/chargingPoints";
 
 const RECENT_LOG_MS = 2 * 60 * 1000; // 2 minutes
 export interface CommandResult {
@@ -108,12 +109,14 @@ export class VehicleManager {
     middleware: VehicleMiddleware,
   ): Promise<void> {
     try {
-      const logs = await this.db.getLastControllerLogPerVehicle();
-      const log = logs.find((l) => l.vehicleId === vehicleId);
+      const since = new Date(Date.now() - RECENT_LOG_MS).toISOString();
+      const log = await this.db.getLatestControllerLog(
+        linkedChargingPointId(vehicleId),
+        since,
+      );
       if (!log) return;
 
       const logAge = Date.now() - new Date(log.timestamp + "Z").getTime();
-      if (logAge >= RECENT_LOG_MS) return;
 
       const inputs = parseDecisionInputs(log.inputsJson);
       if (!inputs?.vehicleState) return;

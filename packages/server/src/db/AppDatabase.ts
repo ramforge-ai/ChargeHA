@@ -440,8 +440,11 @@ export class AppDatabase {
   ): Promise<RecentStateChange[]> {
     return await this.logs.getRecentStateChanges(sinceMinutes, after);
   }
-  async getLastControllerLogPerVehicle(): Promise<ControllerLogRow[]> {
-    return await this.logs.getLastControllerLogPerVehicle();
+  async getLatestControllerLog(
+    vehicleId: string,
+    since: string,
+  ): Promise<ControllerLogRow | null> {
+    return await this.logs.getLatestControllerLog(vehicleId, since);
   }
   async pruneControllerLogs(retentionDays: number): Promise<void> {
     return await this.logs.pruneControllerLogs(retentionDays);

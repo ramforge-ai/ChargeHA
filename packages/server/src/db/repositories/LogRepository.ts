@@ -11,14 +11,13 @@ import {
   like,
   lt,
   lte,
-  max,
   not,
   or,
   sql,
 } from "drizzle-orm";
 import { controllerLogs, pluginLogs, vehiclePollLogs } from "../Schema.ts";
 import { toSqliteDatetime } from "./sqliteHelpers.ts";
-import type { ControllerAction, VehicleMode } from "@chargeha/shared";
+import type { ControllerAction } from "@chargeha/shared";
 import type {
   ControllerLogInput,
   ControllerLogRow,
@@ -148,7 +147,8 @@ export class LogRepository {
       })
       .from(controllerLogs)
       .where(and(...conditions))
-      .orderBy(asc(controllerLogs.vehicleId), asc(controllerLogs.timestamp));
+      // Overseer groups by vehicle itself; sorting by vehicle_id here would scan idx_controller_logs_vehicle_ts.
+      .orderBy(asc(controllerLogs.timestamp), asc(controllerLogs.id));
 
     return rows.map((row) => ({
       ...row,
@@ -156,41 +156,22 @@ export class LogRepository {
     }));
   }
 
-  /** Returns the most recent controller log entry for each vehicle. */
-  async getLastControllerLogPerVehicle(): Promise<ControllerLogRow[]> {
-    const latest = this.db
-      .select({
-        vehicleId: controllerLogs.vehicleId,
-        maxId: max(controllerLogs.id).as("max_id"),
-      })
+  async getLatestControllerLog(
+    vehicleId: string,
+    since: string,
+  ): Promise<ControllerLogRow | null> {
+    const [row] = (await this.db
+      .select()
       .from(controllerLogs)
-      .groupBy(controllerLogs.vehicleId)
-      .as("latest");
-
-    const rows = await this.db
-      .select({
-        id: controllerLogs.id,
-        timestamp: controllerLogs.timestamp,
-        vehicleId: controllerLogs.vehicleId,
-        vehicleName: controllerLogs.vehicleName,
-        mode: controllerLogs.mode,
-        inputsJson: controllerLogs.inputsJson,
-        checksJson: controllerLogs.checksJson,
-        action: controllerLogs.action,
-        actionDetail: controllerLogs.actionDetail,
-        targetAmps: controllerLogs.targetAmps,
-        traceId: controllerLogs.traceId,
-      })
-      .from(controllerLogs)
-      .innerJoin(latest, eq(controllerLogs.id, latest.maxId));
-
-    return rows.map((row) => ({
-      ...row,
-      mode: row.mode as VehicleMode,
-      action: row.action as ControllerAction,
-      targetAmps: row.targetAmps ?? null,
-      traceId: row.traceId ?? null,
-    }));
+      .where(
+        and(
+          eq(controllerLogs.vehicleId, vehicleId),
+          gte(controllerLogs.timestamp, toSqliteDatetime(since)),
+        ),
+      )
+      .orderBy(desc(controllerLogs.timestamp), desc(controllerLogs.id))
+      .limit(1)) as ControllerLogRow[];
+    return row ?? null;
   }
 
   async pruneControllerLogs(retentionDays: number): Promise<void> {
