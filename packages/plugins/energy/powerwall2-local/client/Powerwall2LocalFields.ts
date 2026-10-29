@@ -1,4 +1,6 @@
 import { createElement } from "react";
+import type { inferRouterInputs } from "@trpc/server";
+import type { Powerwall2LocalAppRouter } from "../routerType.ts";
 import type { PluginConfigField } from "../../../hostUi.ts";
 import { Powerwall2LocalPasswordHelp } from "./Powerwall2LocalPasswordHelp.tsx";
 
@@ -50,13 +52,11 @@ export const POWERWALL2_LOCAL_FIELDS: PluginConfigField[] = [
   },
 ];
 
-export interface Powerwall2LocalValues {
-  host: string;
-  email: string;
-  password: string;
-  maxStalenessSeconds: string;
-  pollIntervalSeconds: string;
-}
+export type Powerwall2LocalValues = Required<
+  inferRouterInputs<Powerwall2LocalAppRouter>["plugin"]["energy"][
+    "powerwall2_local"
+  ]["testConnection"]
+>;
 
 export const valuesFrom = (
   values: Partial<Powerwall2LocalValues>,

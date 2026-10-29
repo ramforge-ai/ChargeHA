@@ -45,6 +45,7 @@ describe("Powerwall HTTPS transport", () => {
           {},
         ),
       ).rejects.toThrow("timed out after 20ms");
+
       expect(harness.state.destroyed).toBe(true);
     } finally {
       harness.restore();
@@ -177,6 +178,7 @@ describe("Powerwall HTTPS transport", () => {
           controller.signal,
         ),
       ).rejects.toThrow("cancelled");
+
       expect(harness.options).toHaveLength(0);
 
       const active = expect(http.request("192.0.2.10", "/active", "GET", {}))
@@ -187,12 +189,14 @@ describe("Powerwall HTTPS transport", () => {
       http.close?.();
       http.close?.();
       await Promise.all([active, other]);
+
       harness.exchanges.forEach((exchange) => {
         exchange.request.emit("timeout");
         exchange.reply();
 
         expect(exchange.destroyed).toEqual({ requests: 1, responses: 1 });
       });
+
       time.tick(20_000);
 
       expect(harness.options).toHaveLength(2);

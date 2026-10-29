@@ -38,11 +38,15 @@ describe("Powerwall persisted plugin failures", () => {
 
       expect(initial.total).toBe(1);
       expect(JSON.stringify(initial)).not.toContain("synthetic-private");
+
       time.tick(300_000);
       await expect(adapter.getRealtimeData()).rejects.toThrow();
+
       expect((await logs.getPluginLogs({ pluginId: "powerwall2_local" })).total)
         .toBe(1);
+
       await expect(adapter.connect()).rejects.toThrow();
+
       expect((await logs.getPluginLogs({ pluginId: "powerwall2_local" })).total)
         .toBe(2);
 
@@ -53,6 +57,7 @@ describe("Powerwall persisted plugin failures", () => {
       await expect(adapter.getRealtimeData(controller.signal)).rejects.toThrow(
         "cancelled",
       );
+
       expect((await logs.getPluginLogs({ pluginId: "powerwall2_local" })).total)
         .toBe(2);
     } finally {

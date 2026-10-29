@@ -86,6 +86,7 @@ describe("Powerwall plugin and config router", () => {
     await expect(
       ctx.caller.setConfig({ host: "https://user:pass@example.com/path" }),
     ).rejects.toThrow();
+
     expect(await ctx.caller.getConfig()).toEqual(config);
   });
 

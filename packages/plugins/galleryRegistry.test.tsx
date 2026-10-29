@@ -27,6 +27,7 @@ describe("plugin-owned static gallery", () => {
           )}
         </Theme>,
       );
+
       expect(screen.getByText(/Connected —/)).toBeInTheDocument();
       expect(screen.getByText(/telemetry is stale/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Testing…" })).toBeDisabled();

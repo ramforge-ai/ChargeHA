@@ -72,6 +72,7 @@ describe("ChargeController — failed energy data", () => {
     await ctx.tick();
 
     expect(ctx.adapter.commands).toContainEqual({ cmd: "start" });
+
     ctx.adapter.commands = [];
     ctx.energy.shouldFail = true;
 
@@ -82,6 +83,7 @@ describe("ChargeController — failed energy data", () => {
       solarProductionW: 0,
     });
     expect(ctx.adapter.commands).toContainEqual({ cmd: "stop" });
+
     ctx.adapter.commands = [];
     ctx.energy.shouldFail = false;
 
@@ -98,6 +100,7 @@ describe("ChargeController — failed energy data", () => {
 
     expect(ctx.adapter.commands).not.toContainEqual({ cmd: "start" });
     expect(ctx.poller.getRealtimeSnapshot().realtime.pollFailed).toBe(true);
+
     ctx.energy.shouldFail = false;
 
     await ctx.tick();

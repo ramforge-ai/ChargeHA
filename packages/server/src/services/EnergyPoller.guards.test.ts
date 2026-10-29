@@ -166,6 +166,7 @@ describe("Energy poll scheduling guards", () => {
     emitter.emit("config_changed", { key: "test.host" });
     emitter.emit("config_changed", { key: "test.password" });
     await Promise.resolve(); // The documented config coalescing microtask.
+
     expect(adapter.reads[0].signal?.aborted).toBe(true);
     expect(adapter.reconfigurations).toEqual([]);
 

@@ -64,8 +64,8 @@ describe("EnergyPoller", () => {
     // test drives `poll()` deterministically (otherwise the ambient poll
     // fires one extra `energy_update` event and throws off assertions).
     await poller.stop();
-    // The initial poll will have emitted events into the mock before stop()
-    // awaited it — clear them so each test sees only its own emissions.
+    // Clear any initial poll events emitted before stop() completed so each
+    // test sees only its own emissions.
     emitter.events = [];
   });
 
@@ -111,6 +111,7 @@ describe("EnergyPoller", () => {
 
     it("emits energy_poll_failure on failed poll", async () => {
       adapter.shouldFail = true;
+
       await testable(poller).poll();
 
       const failureEvents = emitter.events.filter((e) =>
@@ -126,6 +127,7 @@ describe("EnergyPoller", () => {
       // Failures must be recorded as a zero-valued breadcrumb so DataRecorder
       // does not silently reuse the prior good reading for many minutes.
       adapter.shouldFail = true;
+
       await testable(poller).poll();
 
       const energyUpdates = emitter.events.filter((e) =>
@@ -213,9 +215,11 @@ describe("EnergyPoller", () => {
 
     it("restart after explicit stop leaves the poller stopped", async () => {
       await poller.restart();
+
       expect(testable(poller).polling).toBeNull();
       expect(poller.tryGetRealtimeSnapshot()).toBeNull();
       expect(emitter.events).toEqual([]);
+
       await poller.stop();
     });
   });

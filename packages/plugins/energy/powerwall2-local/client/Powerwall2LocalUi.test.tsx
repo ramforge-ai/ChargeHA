@@ -205,6 +205,7 @@ describe("Powerwall setup and settings", () => {
 
   it("tests unsaved settings, not the old saved host", () => {
     renderWithProviders(<Powerwall2LocalConfig />);
+
     fireEvent.change(screen.getByLabelText("Gateway IP address"), {
       target: { value: "192.0.2.20" },
     });
@@ -324,6 +325,7 @@ describe("Powerwall setup and settings", () => {
 
   it("preserves a deliberately cleared wizard field and an edited interval", () => {
     renderWithProviders(<WizardHarness />);
+
     fireEvent.change(screen.getByLabelText("Maximum telemetry age (seconds)"), {
       target: { value: "" },
     });
