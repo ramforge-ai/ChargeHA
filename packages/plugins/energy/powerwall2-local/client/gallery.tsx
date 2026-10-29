@@ -3,6 +3,7 @@ import {
   Powerwall2LocalTestResult,
   Powerwall2LocalView,
 } from "./Powerwall2LocalView.tsx";
+
 const noop = () => {};
 const values = {
   host: "192.0.2.10",

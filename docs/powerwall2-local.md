@@ -183,10 +183,11 @@ The shared energy poller permits only one cycle in flight. Stop and reconfigure
 abort outstanding requests and await in-flight work before stop returns or the
 adapter is replaced. Rejected cancellation is logged at debug level only; a late
 success may finish while draining, but the old loop is not rescheduled.
-Powerwall reads aggregates then SOC sequentially through an HTTPS pool capped at
-one connection. Each request has a 10-second absolute deadline. Authentication
-and retry can make a complete poll take longer than 20 seconds, but cannot
-overlap the next scheduled poll. Cancellation destroys the active request.
+Powerwall reads aggregates then SOC sequentially, using a separate HTTPS
+connection for each request so a timed-out connection cannot replay old work.
+Each request has a 10-second absolute deadline. Authentication and retry can
+make a complete poll take longer than 20 seconds, but cannot overlap the next
+scheduled poll. Cancellation destroys the active request.
 
 Success and failure both wait the configured interval after completion. HTTP 429
 and 503 activate the plugin client's cooldown: Retry-After seconds or an HTTP

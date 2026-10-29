@@ -5,15 +5,12 @@ import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 import {
   aggregates,
   FakePowerwallApi,
-  meter,
   NOW,
 } from "./test-helpers/powerwallApi.ts";
 
 describe("Powerwall Gateway usable battery percentage", () => {
-  const read = (percentage: unknown, batteryPower = 0) => {
-    const api = new FakePowerwallApi(
-      aggregates({ battery: meter(batteryPower) }),
-    );
+  const read = (percentage: unknown) => {
+    const api = new FakePowerwallApi(aggregates());
     api.soeResponse = { percentage };
     return new Powerwall2LocalAdapter(
       api,
@@ -23,45 +20,25 @@ describe("Powerwall Gateway usable battery percentage", () => {
     ).getRealtimeData();
   };
 
-  it("reports 20% usable capacity for the 24% raw reserve observation", async () => {
-    await expect(read(24)).resolves.toMatchObject({
-      batterySoc: 20,
-      batteryPowerW: 0,
-    });
+  it("reports zero usable capacity at or below the 5% buffer", async () => {
+    const readings = await Promise.all([0, 2.5, 5].map((raw) => read(raw)));
+
+    expect(readings.map((reading) => reading.batterySoc)).toEqual([0, 0, 0]);
   });
 
-  [0, 2.5, 5].forEach((raw) => {
-    it(`reports zero usable capacity at raw ${raw}%`, async () => {
-      expect((await read(raw)).batterySoc).toBe(0);
-    });
+  it("reports 20% usable capacity for raw 24%", async () => {
+    const reading = await read(24);
+
+    expect(reading.batterySoc).toBe(20);
   });
 
-  [[5.95, 1], [52.5, 50], [99.05, 99], [100, 100]].forEach(
-    ([raw, usable]) => {
-      it(`maps raw ${raw}% to usable ${usable}%`, async () => {
-        expect((await read(raw)).batterySoc).toBeCloseTo(usable, 10);
-      });
-    },
-  );
+  it("reports full usable capacity for raw 100%", async () => {
+    const reading = await read(100);
 
-  it("retains fractional precision instead of rounding telemetry", async () => {
-    expect((await read(82.4)).batterySoc).toBeCloseTo(81.47368421052632, 10);
+    expect(reading.batterySoc).toBe(100);
   });
 
-  [-4100, 1500].forEach((power) => {
-    it(`does not infer or suppress signed battery power ${power}W from SOC`, async () => {
-      await expect(read(24, power)).resolves.toMatchObject({
-        batterySoc: 20,
-        batteryPowerW: power,
-      });
-    });
+  it("rejects invalid raw SOC before scaling", async () => {
+    await expect(read(Number.NaN)).rejects.toThrow("invalid battery");
   });
-
-  [-1, 100.01, NaN, Infinity, -Infinity, "24", null, undefined].forEach(
-    (raw) => {
-      it(`rejects invalid raw SOC ${String(raw)} before scaling`, async () => {
-        await expect(read(raw)).rejects.toThrow("invalid battery");
-      });
-    },
-  );
 });

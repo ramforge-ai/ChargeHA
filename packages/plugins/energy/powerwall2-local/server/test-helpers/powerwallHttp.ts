@@ -2,6 +2,7 @@ import type {
   PowerwallHttp,
   PowerwallHttpResponse,
 } from "../PowerwallGatewayClient.ts";
+
 interface RecordedRequest {
   path: string;
   method: string;

@@ -1,4 +1,5 @@
 import type { PowerwallGatewayApi } from "../PowerwallGatewayClient.ts";
+
 export class FakePowerwallApi implements PowerwallGatewayApi {
   readonly host = "192.0.2.10";
   aggregateResponse: unknown;

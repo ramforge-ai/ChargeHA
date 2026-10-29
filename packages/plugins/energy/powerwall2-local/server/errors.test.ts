@@ -14,10 +14,12 @@ describe("Powerwall public error boundary", () => {
       { response: "PRIVATE_RESPONSE" },
     );
     const safe = safePowerwallError(raw);
+
     expect(safe.message).toContain("Powerwall connection failed");
     expect(safe.cause).toBeUndefined();
     expect(JSON.stringify(safe)).not.toContain("PRIVATE_");
   });
+
   it("retains trusted status/cooldown diagnostics without retaining their cause", () => {
     const safe = safePowerwallError(
       new PowerwallGatewayConnectionError(
@@ -29,10 +31,12 @@ describe("Powerwall public error boundary", () => {
         },
       ),
     );
+
     expect(safe).toMatchObject({ status: 503, retryAfterMs: 300000 });
     expect(safe.message).toContain("503; cooling down");
     expect(safe.cause).toBeUndefined();
   });
+
   it("retains plugin-authored authentication and telemetry diagnoses", () => {
     const auth = safePowerwallError(
       new PowerwallGatewayAuthError(
@@ -42,6 +46,7 @@ describe("Powerwall public error boundary", () => {
     const telemetry = safePowerwallError(
       new PowerwallTelemetryError("Powerwall telemetry is stale"),
     );
+
     expect(auth).toBeInstanceOf(PowerwallGatewayAuthError);
     expect(telemetry.message).toBe("Powerwall telemetry is stale");
   });

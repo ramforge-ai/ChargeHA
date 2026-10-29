@@ -26,6 +26,7 @@ describe("Powerwall2LocalAdapter validation", () => {
       read({ site: meter(100, new Date(NOW - 60_001).toISOString()) }),
     ).rejects.toThrow("stale");
   });
+
   it("tolerates five seconds of clock skew but rejects a future meter beyond it", async () => {
     await expect(
       read({ battery: meter(100, new Date(NOW + 5_000).toISOString()) }),
@@ -34,6 +35,7 @@ describe("Powerwall2LocalAdapter validation", () => {
       read({ battery: meter(100, new Date(NOW + 5_001).toISOString()) }),
     ).rejects.toThrow("in the future");
   });
+
   it("requires every meter", async () => {
     await Promise.all(["site", "solar", "load", "battery"].map(async (name) => {
       await expect(read({ [name]: null })).rejects.toThrow(
@@ -41,6 +43,7 @@ describe("Powerwall2LocalAdapter validation", () => {
       );
     }));
   });
+
   it("rejects missing and nonfinite power on every meter", async () => {
     await Promise.all(
       ["site", "solar", "load", "battery"].flatMap((name) =>
@@ -51,16 +54,19 @@ describe("Powerwall2LocalAdapter validation", () => {
       ),
     );
   });
+
   it("supports alternate meter field names and optional missing voltage", async () => {
     const site = {
       instantaneous_power: 1234,
       last_communication_time: new Date(NOW).toISOString(),
     };
+
     await expect(read({ site })).resolves.toMatchObject({
       gridPowerW: 1234,
       gridVoltageV: null,
     });
   });
+
   it("clamps small negative solar and load noise, not signed battery/grid power", async () => {
     await expect(read({ solar: meter(-1), load: meter(-1) })).resolves
       .toMatchObject({ solarProductionW: 0, homeConsumptionW: 0 });

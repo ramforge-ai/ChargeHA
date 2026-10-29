@@ -1,5 +1,6 @@
 import type { PluginGallery } from "../../../pluginOptions.ts";
 import { StationPicker } from "./StationPicker.tsx";
+
 export const goodweGallery: PluginGallery = {
   id: "goodwe-sems",
   title: "GoodWe SEMS",

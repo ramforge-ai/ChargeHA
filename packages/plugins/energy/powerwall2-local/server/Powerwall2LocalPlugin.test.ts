@@ -35,6 +35,7 @@ describe("Powerwall plugin and config router", () => {
     await ctx.plugin.shutdown();
     ctx.db.close();
   });
+
   it("returns server defaults for a fresh plugin without stored config", async () => {
     expect(
       await ctx.db.getPluginConfig("powerwall2_local.max_staleness_seconds"),
@@ -50,10 +51,14 @@ describe("Powerwall plugin and config router", () => {
       pollIntervalSeconds: "30",
     });
   });
+
   it("round-trips the config with an encrypted, namespaced password", async () => {
     await ctx.caller.setConfig(config);
+
     expect(await ctx.caller.getConfig()).toEqual(config);
+
     const stored = await ctx.db.getPluginConfig("powerwall2_local.password");
+
     expect(stored).not.toBe(config.password);
     expect(stored).not.toBeNull();
     expect(await ctx.deps.getSecret("password")).toBe(config.password);
@@ -62,16 +67,20 @@ describe("Powerwall plugin and config router", () => {
       Powerwall2LocalAdapter,
     );
   });
+
   it("partial saves preserve other settings and the encrypted password", async () => {
     await ctx.caller.setConfig(config);
     await ctx.caller.setConfig({ maxStalenessSeconds: "30" });
+
     expect(await ctx.caller.getConfig()).toEqual({
       ...config,
       maxStalenessSeconds: "30",
     });
   });
+
   it("rejects invalid freshness and host values before writing config", async () => {
     await ctx.caller.setConfig(config);
+
     await expect(ctx.caller.setConfig({ maxStalenessSeconds: "0" })).rejects
       .toThrow();
     await expect(
@@ -79,6 +88,7 @@ describe("Powerwall plugin and config router", () => {
     ).rejects.toThrow();
     expect(await ctx.caller.getConfig()).toEqual(config);
   });
+
   it("validates connection input without contacting a host", async () => {
     await expect(ctx.caller.testConnection({ ...config, password: "" })).rejects
       .toThrow();
@@ -86,6 +96,7 @@ describe("Powerwall plugin and config router", () => {
       ctx.caller.testConnection({ ...config, maxStalenessSeconds: "301" }),
     ).rejects.toThrow();
   });
+
   it("requires configured host and creates its router without side effects", async () => {
     await expect(ctx.plugin.createAdapter()).rejects.toThrow(
       "host is not configured",

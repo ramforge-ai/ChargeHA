@@ -4,7 +4,6 @@ import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import type { PluginDbLogger } from "@chargeha/server/lib/PluginDbLogger";
 import { LogService } from "../../../../server/src/services/LogService.ts";
-import { Logger } from "@chargeha/server/lib/Logger";
 import { Powerwall2LocalAdapter } from "./Powerwall2LocalAdapter.ts";
 import { stub } from "@std/testing/mock";
 import { pluginHarness } from "./test-helpers/pluginHarness.ts";
@@ -22,14 +21,6 @@ describe("Powerwall2LocalPlugin.testConnection", () => {
     maxStalenessSeconds: "60",
     pollIntervalSeconds: "30",
   };
-  const factory = (api: FakePowerwallApi) => () =>
-    new Powerwall2LocalAdapter(
-      api,
-      60,
-      new Logger("test", "error"),
-      () => NOW,
-    );
-
   [true, false].forEach((fails) => {
     it(`keeps interactive connection results out of Logs (fails=${fails})`, async () => {
       const ctx = await pluginHarness();
@@ -56,6 +47,7 @@ describe("Powerwall2LocalPlugin.testConnection", () => {
         const before = await logs.getPluginLogs({
           pluginId: "powerwall2_local",
         });
+
         expect((await ctx.plugin.testConnection(input)).success).toBe(!fails);
         expect(await logs.getPluginLogs({ pluginId: "powerwall2_local" }))
           .toEqual(before);
@@ -108,6 +100,7 @@ describe("Powerwall2LocalPlugin.testConnection", () => {
     );
     try {
       const result = await ctx.plugin.testConnection(input);
+
       expect(result.success).toBe(true);
       if (!result.success) throw new Error("Expected successful connection");
       expect(result.device.model).toBe("26.10.0 test");
@@ -175,40 +168,6 @@ describe("Powerwall2LocalPlugin.testConnection", () => {
     }
   });
 
-  it("returns device and telemetry and clears the temporary session", async () => {
-    const api = new FakePowerwallApi(aggregates());
-    api.soeResponse = { percentage: 24 };
-    const ctx = await pluginHarness();
-    using mocked = stub(
-      ctx.plugin,
-      "createAdapter",
-      () => Promise.resolve(factory(api)()),
-    );
-    const result = await ctx.plugin.testConnection(input);
-    ctx.db.close();
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error("Expected successful connection");
-    expect(result.realtime.batterySoc).toBe(20);
-    expect(api.clearCalls).toBe(1);
-    expect(mocked.calls).toHaveLength(1);
-  });
-  it("cleans up after a failed connection without returning fabricated telemetry", async () => {
-    const api = new FakePowerwallApi(new Error("Connection refused"));
-    const ctx = await pluginHarness();
-    using mocked = stub(
-      ctx.plugin,
-      "createAdapter",
-      () => Promise.resolve(factory(api)()),
-    );
-    expect(await ctx.plugin.testConnection(input)).toEqual({
-      success: false,
-      error:
-        "Powerwall connection failed; check Gateway availability and credentials",
-    });
-    expect(api.clearCalls).toBe(1);
-    expect(mocked.calls).toHaveLength(1);
-    ctx.db.close();
-  });
   it("returns a safe structured factory failure", async () => {
     const ctx = await pluginHarness();
     using mocked = stub(

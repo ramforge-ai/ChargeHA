@@ -30,7 +30,9 @@ describe("ChargeController — failed energy data", () => {
       ctx.db,
       log,
     );
+
     await poller.stop();
+
     const controller = new ChargeController(
       ctx.manager,
       ctx.chargingPointManager,
@@ -65,12 +67,16 @@ describe("ChargeController — failed energy data", () => {
   afterEach(async () => {
     await ctx.close();
   });
+
   it("stops solar charging on failed energy data and recovers on fresh data", async () => {
     await ctx.tick();
+
     expect(ctx.adapter.commands).toContainEqual({ cmd: "start" });
     ctx.adapter.commands = [];
     ctx.energy.shouldFail = true;
+
     await ctx.tick();
+
     expect(ctx.poller.getRealtimeSnapshot().realtime).toMatchObject({
       pollFailed: true,
       solarProductionW: 0,
@@ -78,24 +84,32 @@ describe("ChargeController — failed energy data", () => {
     expect(ctx.adapter.commands).toContainEqual({ cmd: "stop" });
     ctx.adapter.commands = [];
     ctx.energy.shouldFail = false;
+
     await ctx.tick();
+
     expect(ctx.poller.getRealtimeSnapshot().realtime.pollFailed)
       .toBeUndefined();
     expect(ctx.adapter.commands).toContainEqual({ cmd: "start" });
   });
+
   it("does not start solar charging during an energy outage", async () => {
     ctx.energy.shouldFail = true;
     await ctx.tick();
+
     expect(ctx.adapter.commands).not.toContainEqual({ cmd: "start" });
     expect(ctx.poller.getRealtimeSnapshot().realtime.pollFailed).toBe(true);
     ctx.energy.shouldFail = false;
+
     await ctx.tick();
+
     expect(ctx.adapter.commands).toContainEqual({ cmd: "start" });
   });
+
   it("leaves explicit Charge Now independent of failed solar telemetry", async () => {
     await ctx.setMode("charge_now");
     ctx.energy.shouldFail = true;
     await ctx.tick();
+
     expect(ctx.poller.getRealtimeSnapshot().realtime.pollFailed).toBe(true);
     expect(ctx.adapter.commands).toContainEqual({ cmd: "start" });
   });

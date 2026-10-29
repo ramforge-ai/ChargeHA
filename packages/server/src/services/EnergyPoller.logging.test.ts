@@ -16,7 +16,9 @@ describe("EnergyPoller — genuine failure observability", () => {
   it("preserves Logs, recorded failure rows and events for a genuine poll error", async () => {
     const message = "Adapter unavailable";
     const db = new AppDatabase(":memory:");
+
     await db.init();
+
     const emitter = new TypedEventEmitter();
     const failures: string[] = [];
     emitter.subscribe(
@@ -44,7 +46,9 @@ describe("EnergyPoller — genuine failure observability", () => {
       db,
       log,
     );
+
     await poller.stop();
+
     const recorder = new DataRecorder(
       db,
       throwingMock<VehicleManager>("VehicleManager"),
@@ -55,26 +59,32 @@ describe("EnergyPoller — genuine failure observability", () => {
       emitter,
       log,
     );
+
     await recorder.stop();
     try {
       await testable(poller).poll();
       await testable(recorder).record();
+
       expect(failures).toEqual([message]);
       expect(poller.getRealtimeSnapshot().realtime).toMatchObject({
         pollFailed: true,
         pollError: message,
       });
+
       const logs = await db.logs.getPluginLogs({
         pluginId: "test-energy",
         limit: 10,
         offset: 0,
       });
+
       expect(logs.total).toBe(1);
       expect(logs.rows[0].message).toBe("Poll failed: " + message);
+
       const readings = await db.energy.getEnergyReadingsPaginated({
         limit: 10,
         offset: 0,
       });
+
       expect(readings.total).toBe(1);
       expect(readings.rows[0].pollFailed).toBe(1);
       expect(readings.rows[0].solarProductionW).toBe(0);
